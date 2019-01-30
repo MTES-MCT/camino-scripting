@@ -1,0 +1,15 @@
+{
+  "name": "camino-mail-compile",
+  "version": "0.0.1",
+  "description": "Compile des milliers de mails en un fichier .csv",
+  "main": "index.js",
+  "dependencies": {
+    "json2csv": "^4.3.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
