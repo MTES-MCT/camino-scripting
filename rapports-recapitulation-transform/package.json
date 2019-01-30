@@ -1,0 +1,16 @@
+{
+  "name": "camino-rapports-recapitulation-transform",
+  "version": "0.0.1",
+  "description": "Transforme le rapport de récapitulation en un fichier csv au format camino-db-rapports",
+  "main": "index.js",
+  "dependencies": {
+    "csvtojson": "^2.0.8",
+    "json2csv": "^4.3.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
