@@ -1,76 +1,96 @@
-var fs = require('fs');
-var filespath = process.cwd() + "/files/";
+const fs = require('fs')
+const filespath = process.cwd() + '/files/'
 
+const coordEpsgBuild = (dataCoordEpsg, lines, filepath) => [
+  ...dataCoordEpsg,
+  ...lines[0].split('\t').reduce((acc, epsgId, i) => {
+    // on sélectionne les coordonnées d'un epsg qui se trouvent
+    // dans les colonnes numero 5+i, 6+i
+    if (i < 5 || i % 2 === 0) return acc
 
-function read_file(filepath){
-    var data = fs.readFileSync(filespath + filepath, 'utf8');
-    var lines = data.split('\r\n');
-    var nb_lines = lines.length;
-    var geo_data = {'file': filepath, 'coord_epsg': new Array(), 'lines': {'groupe': new Array(), 'contour': new Array(), 'point': new Array(), 'jorf_id':new Array(), 'description':new Array()}};
-    try {
-        var header = lines[0].split('\t');
-        var epsg_liste = new Array();
-        for (i = 5; i < header.length; i+=2){
-            epsg_liste.push(header[i]);
-        };
-        for (j=0; j<epsg_liste.length; j++){
-            var epsg = epsg_liste[j];
-            var epsg_int = parseInt(epsg, 10);
-            if (1000 < epsg_int && epsg_int < 100000){
-                var coord_data = new Array();
-                for (i = 1; i < nb_lines; i++){
-                    coord_data.push({'X': lines[i].split('\t')[5 + 2*j], 'Y': lines[i].split('\t')[6 + 2*j]});
-                };
-                geo_data['coord_epsg'].push({'epsg': epsg, 'coord': coord_data})
-            } else {
-                if (lines.length < 2) console.log("Le fichier: " + filepath + " est vide");
-                else console.log("Le fichier: " + filepath + " n'est pas valide");
-            };  
-        }
-    } catch {
-        if (lines.length < 2) console.log("Le fichier: " + filepath + " est vide");
-        else console.log("Le fichier: " + filepath + " n'est pas valide");
-    };
-    for (i=1; i< nb_lines;i++){
-        var data_des = lines[i].split('\t');
-        geo_data['lines']['groupe'].push(data_des[0]);
-        geo_data['lines']['contour'].push(data_des[1]);
-        geo_data['lines']['point'].push(data_des[2]);
-        geo_data['lines']['jorf_id'].push(data_des[3]);
-        geo_data['lines']['description'].push(data_des[4]);
-    };
-    return geo_data
-};
+    const epsgInt = parseInt(epsgId)
+    if (isNaN(epsgInt)) {
+      //console.log(`le fichier ${filepath} possede un epsg non numérique`)
+      return acc
+    }
+    if (epsgInt < 1000 || epsgInt > 100000) {
+      // ${lines.length < 2 ? 'est vide' : "n'est pas valide"}
+      //console.log(`Le fichier: ${filepath} a une valeur d'epsg non valide`)
+      return acc
+    }
 
+    const coordData = lines.slice(1).map(line => {
+      const [X, Y] = line.split('\t').slice(i, i + 2)
+      return {
+        X,
+        Y
+      }
+    })
 
-function create_epsg_folder(folder){
-    var files = fs.readdirSync(filespath + folder + '/');
-    return files.map(list_map => read_file(folder + '/' + list_map));
-};
+    return [...acc, { epsg: epsgId, coord: coordData }]
+  }, [])
+]
 
+const dataBuild = filepath => {
+  const lines = fs.readFileSync(`${filespath}${filepath}`, 'utf8').split('\r\n')
+  const data = {
+    file: filepath,
+    coordEpsg: [],
+    lines: []
+  }
+  if (lines.length <= 2) {
+    //console.log(`Le fichier: ${filepath} est vide`)
+    return data
+  }
 
-function create_epsg(){
-    var li = ['w', 'c', 'g', 'h', 'm'];
-    return li.map(create_epsg_folder);
-};
+  data.coordEpsg = coordEpsgBuild(data.coordEpsg, lines, filepath)
 
+  data.lines = lines.slice(1).map(line => {
+    const [groupe, contour, point, jorfId, description] = line
+      .split('\t')
+      .splice(0, 5)
+    return { groupe, contour, point, jorfId, description }
+  })
+  return data
+}
 
-function recreate_epsg(mat){
-    var new_mat = {};
-    for (i = 0; i<mat.length;i++){
-        for (j=0;j<mat[i].length;j++){
-            var filename = mat[i][j]["file"];
-            var coord = mat[i][j]["coord_epsg"];
-            var lines = mat[i][j]["lines"];
-            new_mat[filename] = {epsg_data: coord, other_data: lines};
-        };
-    };
-    return new_mat;
-};
+const createEpsgFolder = folder => {
+  const files = fs.readdirSync(`${filespath}${folder}/`)
+  return files.map(listMap => dataBuild(`${folder}/${listMap}`))
+}
 
+const createEpsg = () => {
+  const li = ['w', 'c', 'g', 'h', 'm']
+  return li.map(createEpsgFolder)
+}
 
-var mat = create_epsg();
-var new_mat = recreate_epsg(mat);
+const recreateEpsg = mat => {
+  const newMat = {}
+  mat.map(row =>
+    row.map(elem => {
+      const [epsgData, filename] = [elem.coordEpsg, elem.file]
+      const otherData = {
+        groupe: [],
+        contour: [],
+        point: [],
+        jorfId: [],
+        description: []
+      }
+      elem.lines.map(elemData => {
+        otherData.groupe.push(elemData.groupe)
+        otherData.contour.push(elemData.contour)
+        otherData.point.push(elemData.point)
+        otherData.jorfId.push(elemData.jorfId)
+        otherData.description.push(elemData.description)
+      })
+      newMat[filename] = { epsgData, otherData }
+    })
+  )
+  return newMat
+}
 
-fs.writeFileSync(filespath + 'data_tsv.json', JSON.stringify(new_mat));
+const matEpsg = createEpsg()
+const newMatEpsg = recreateEpsg(matEpsg)
+
+fs.writeFileSync(`${filespath}data_tsv.json`, JSON.stringify(newMatEpsg))
 process.exit()
