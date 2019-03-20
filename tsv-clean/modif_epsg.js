@@ -289,23 +289,29 @@ const check = file => {
     const coord = epsgElem.coord
     const epsgBound = block[epsg].coord
     if (block[epsg].projected == 'Y') {
-      for (j = 0; j < coord.length; j++) {
-        if (checkLatLonFromXY(coord[j])) {
-          modifXY(coord[j], epsgBound, file, epsg, description[j])
+      coord.reduce((acc, coordXY, j) => {
+        if (checkLatLonFromXY(coordXY)) {
+          modifXY(coordXY, epsgBound, file, epsg, description[j])
         } else {
-          log.push([file, epsg, coord[j].X, coord[j].Y, pb.XYInsteadLatLon])
+          log.push([file, epsg, coordXY.X, coordXY.Y, pb.XYInsteadLatLon])
           data[file].correct.push([pb.XYInsteadLatLon, pb.epsgInv])
         }
-      }
+      })
     } else {
-      for (j = 0; j < coord.length; j++) {
-        if (checkXYFromLatLon(coord[j])) {
-          modifLatLon(coord[j], epsgBound, file, epsg, description[j])
+      coord.reduce((acc, coordLatLon, j) => {
+        if (checkXYFromLatLon(coordLatLon)) {
+          modifLatLon(coordLatLon, epsgBound, file, epsg, description[j])
         } else {
-          log.push([file, epsg, coord[j].X, coord[j].Y, pb.LatLonInsteadXY])
+          log.push([
+            file,
+            epsg,
+            coordLatLon.X,
+            coordLatLon.Y,
+            pb.LatLonInsteadXY
+          ])
           data[file].correct.push([pb.LatLonInsteadXY, pb.epsgInv])
         }
-      }
+      })
     }
   })
 }
@@ -338,6 +344,8 @@ const array_to_csv = (entree, sortie) => {
     })
   })
 }
+
+//check('w/w-cxx-astrolabe-2009-oct01-mfr01.tsv')
 
 read_files()
 fs.writeFileSync(`${filespath}log_error.json`, JSON.stringify(log))

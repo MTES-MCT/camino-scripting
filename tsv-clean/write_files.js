@@ -10,31 +10,19 @@ const check_error = fileName => {
     })
     return errorArr
   }
-  /*
-  const errorArr = epsgData.map(epsgElem => {
-    const n = epsgElem.coord.length
-    const [arr, checkArr] = [[], []]
-    return arr
-  })
-*/
-  const errorArr = []
-  for (i = 0; i < epsgData.length; i++) {
-    const arr = []
-    const checkArr = []
-    for (j = 0; j < n; j++) {
-      const elem = logError[j + i * n]
-      if (!checkArr.includes(elem[1])) {
-        checkArr.push(elem[1])
-        arr.push([elem[0], elem[1]])
-      }
-    }
-    if (arr.length != 1) {
-      console.log(fileName, arr)
-    }
-    errorArr.push(arr)
-  }
 
-  return errorArr
+  const n = epsgData[0].coord.length
+  return logError.reduce((acc, elem, i) => {
+    let checkArr = []
+    if (i % n == 0) checkArr = []
+
+    const value = elem[1]
+    if (!checkArr.includes(value)) {
+      checkArr.push(value)
+      return [...acc, [[elem[0], value]]]
+    }
+    return [...acc]
+  }, [])
 }
 
 const find_error_priority = errorArr => {
@@ -49,7 +37,7 @@ const find_error_priority = errorArr => {
     Corrige: 1,
     OK: 0
   }
-  const prio = 0
+  let prio = 0
   errorArr.map(row =>
     row.map(elem => {
       if (priorityError[elem[1]] > prio) {
@@ -105,7 +93,7 @@ const write_data = () => {
         2
       )}`
     else if (prio == 5)
-      path = `${filespath}clean_data/Inutilisatble/${fileName.substring(2)}`
+      path = `${filespath}clean_data/Inutilisable/${fileName.substring(2)}`
     write_file(path, data[fileName], prio)
   })
 }
