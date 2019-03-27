@@ -1,3 +1,9 @@
+/*
+
+Ce fichier prend en entrée les données créés par 'epsg-obtain.js'
+Suite à cela, il modifie la donnée, et crée un log des erreurs
+*/
+
 const pb = {
   PAS_DE_PROBLEME: 'pas de probleme',
   A_COMPLETER: 'aCompleter',
@@ -7,23 +13,37 @@ const pb = {
   A_VERIFIER: 'aVerifier',
   MAUVAIS_EPSG: 'pas le bon epsg',
   INCOMPLET: 'donnee incomplete',
-  INVERSION_EPSG: 'inversion',
+  INVERSION_EPSG: 'inversionEpsg',
   NO_DATA_WITH_DESC: 'description sans donnee',
   NO_DATA: 'pas de donnee',
   LATLON_INSTEAD_XY: 'X/Y au lieu de lat/lon',
   UNITE_DEGRE_RADIAN: "probleme d'unite grad/degre",
-  XY_INSTEAD_LATLON: 'lat/lon au lieu de X/Y'
+  XY_INSTEAD_LATLON: 'lat/lon au lieu de X/Y',
+  PAS_DE_CONTOUR: 'pas de contour possible'
 }
 
 const fs = require('fs')
-const filesPath = `${process.cwd()}/files/`
+const path = require('path')
+const filesPath = path.join(process.cwd(), 'files/')
 const domainesIds = ['w', 'c', 'g', 'h', 'm']
 const blockEpsg = JSON.parse(
-  fs.readFileSync(`${filesPath}epsg-block.json`, 'utf8')
+  fs.readFileSync(path.join(filesPath, 'epsg-block2.json'), 'utf8')
 )
 const dataInitial = JSON.parse(
-  fs.readFileSync(`${filesPath}data-tsv.json`, 'utf8')
+  fs.readFileSync(path.join(filesPath, 'data-tsv.json'), 'utf8')
 )
+
+const epsgModif = async (blockEpsg, dataInitial, domainesIds, filesPath) => {
+  const domainesResults = await Promise.all(
+    domainesIds.map(domaineId =>
+      folderRead(domaineId, dataInitial, blockEpsg, filesPath)
+    )
+  )
+  const [logs, datas] = logDataSeparate(domainesResults)
+  return [logs, datas]
+}
+
+module.exports = epsgModif
 
 const XYChange = coord => {
   return coord.replace(/ /g, '').replace(/,/g, '.')
@@ -87,7 +107,6 @@ const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }, fonction) => {
   //1: inversion colonnes
   //1.5: mauvais epsg
   let inverseValue = 0
-
   //Ici, on check si le point n'est pas dans les bordures de l'epsg
   if (
     fonction(x1) >= parseFloat(x) ||
@@ -148,28 +167,49 @@ const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, description) => {
   // On ecrit dans les logs
   let tableauLog = []
   const inverseValue = inverseCheck({ x, y }, epsgBound, parseFloat)
-  inverseValue == 0
-    ? description != null && description.length != 0
-      ? (tableauLog = dataAdd(file, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER))
-      : (tableauLog = dataAdd(file, epsg, pb.NO_DATA, pb.INUTILE))
-    : inverseValue == 1
-    ? (tableauLog = dataAdd(file, epsg, pb.INVERSION_COLONNES, pb.OK))
-    : inverseValue == 0.5
-    ? (tableauLog = dataAdd(file, epsg, pb.PAS_DE_PROBLEME, pb.OK))
-    : epsg == '4807'
-    ? inverseCheck(
-        { x, y },
-        {
-          x1: '-8°0\'25"',
-          y1: '45°53\'20"',
-          x2: '8°6\'13"',
-          y2: '56°49\'20"'
-        },
-        dmsToDec
-      ) == 0.5
-      ? (tableauLog = dataAdd(file, epsg, pb.UNITE_DEGRE_RADIAN, pb.A_VERIFIER))
-      : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER))
-    : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER))
+  //Je veux determiner si j'ai un moyen de determiner que l'epsg 4807 est un point automatique ou non... Mais j'en trouve pas
+  /*if (epsg == '4807') {
+    console.log(file, inverseValue)
+  }*/
+  switch (inverseValue) {
+    case 0:
+      description != null && description.length != 0
+        ? (tableauLog = dataAdd(
+            file,
+            epsg,
+            pb.NO_DATA_WITH_DESC,
+            pb.A_COMPLETER
+          ))
+        : (tableauLog = dataAdd(file, epsg, pb.NO_DATA, pb.INUTILE))
+      break
+    case 1:
+      tableauLog = dataAdd(file, epsg, pb.INVERSION_COLONNES, pb.OK)
+      break
+    case 0.5:
+      tableauLog = dataAdd(file, epsg, pb.PAS_DE_PROBLEME, pb.OK)
+      break
+    case 1.5:
+      epsg == '4807'
+        ? inverseCheck(
+            { x, y },
+            {
+              x1: '-8°0\'25"',
+              y1: '45°53\'20"',
+              x2: '8°6\'13"',
+              y2: '56°49\'20"'
+            },
+            dmsToDec
+          ) == 0.5
+          ? (tableauLog = dataAdd(
+              file,
+              epsg,
+              pb.UNITE_DEGRE_RADIAN,
+              pb.A_VERIFIER
+            ))
+          : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER))
+        : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER))
+      break
+  }
   return tableauLog
 }
 
@@ -209,14 +249,15 @@ const coordModif = (
     epsgBound,
     description
   )
+  /*
   if (!XYSuppose) {
     x = decToDms(x)
     y = decToDms(y)
-  }
+  }*/
   return [tableauLog, { x, y }]
 }
 
-const obtainLogs = filePath => {
+const obtainLogs = (filePath, dataInitial, epsgBlock) => {
   const { epsgData, otherData } = dataInitial[filePath]
   const descriptionListe = otherData.map(otherElem => otherElem.description)
   const epsg = epsgData.epsg
@@ -224,6 +265,13 @@ const obtainLogs = filePath => {
   //Check si la description de tout les points est disponible
   const count = descriptionListe.filter(A => A).length
 
+  if (descriptionListe.length <= 2 && descriptionListe.length != 0) {
+    tableauLog.push([
+      dataAdd(filePath, epsg, pb.PAS_DE_CONTOUR, pb.INUTILE),
+      {}
+    ])
+    return [tableauLog]
+  }
   if (epsgData.length == 0) {
     count != 0 && count >= descriptionListe.length - 1
       ? tableauLog.push([
@@ -233,63 +281,41 @@ const obtainLogs = filePath => {
       : tableauLog.push([dataAdd(filePath, epsg, pb.NO_DATA, pb.INUTILE), {}])
     return [tableauLog]
   }
-  return LogCreate(epsgData, descriptionListe, filePath)
+  return logCreate(epsgData, descriptionListe, filePath, epsgBlock)
 }
 
-const LogCreate = (epsgData, descriptionListe, filePath) => {
+const logCreate = (epsgData, descriptionListe, filePath, epsgBlock) => {
   return epsgData.reduce((acc, { epsg, coord }) => {
     let tableauLog = []
-    const epsgBound = blockEpsg[epsg].coord
-    blockEpsg[epsg].projected == 'Y'
-      ? coord.map(({ x, y }, j) => {
-          XYLatLonCheck({ x, y }, true)
-            ? tableauLog.push(
-                coordModif(
-                  { x, y },
-                  epsgBound,
-                  filePath,
-                  epsg,
-                  descriptionListe[j],
-                  true
-                )
-              )
-            : tableauLog.push([
-                dataAdd(
-                  filePath,
-                  epsg,
-                  pb.XY_INSTEAD_LATLON,
-                  pb.INVERSION_EPSG
-                ),
-                { x, y }
-              ])
-        })
-      : coord.map(({ x, y }, j) => {
-          XYLatLonCheck({ x, y }, false)
-            ? tableauLog.push(
-                coordModif(
-                  { x, y },
-                  epsgBound,
-                  filePath,
-                  epsg,
-                  descriptionListe[j],
-                  false
-                )
-              )
-            : tableauLog.push([
-                dataAdd(
-                  filePath,
-                  epsg,
-                  pb.LATLON_INSTEAD_XY,
-                  pb.INVERSION_EPSG
-                ),
-                { x, y }
-              ])
-        })
+    const epsgBound = epsgBlock[epsg].coord
+    const projectionType = epsgBlock[epsg].projected == 'Y'
+    coord.map(({ x, y }, j) => {
+      XYLatLonCheck({ x, y }, projectionType)
+        ? tableauLog.push(
+            coordModif(
+              { x, y },
+              epsgBound,
+              filePath,
+              epsg,
+              descriptionListe[j],
+              projectionType
+            )
+          )
+        : tableauLog.push([
+            dataAdd(
+              filePath,
+              epsg,
+              projectionType ? pb.XY_INSTEAD_LATLON : pb.LATLON_INSTEAD_XY,
+              pb.INVERSION_EPSG
+            ),
+            { x, y }
+          ])
+    })
     return [...acc, tableauLog]
   }, [])
 }
 
-const logToData = (filePath, tableauLogs) => {
+const logToData = (filePath, tableauLogs, dataInitial) => {
   //tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
   let logs = []
   let datas = {
@@ -313,17 +339,19 @@ const logToData = (filePath, tableauLogs) => {
   return [logs, datas]
 }
 
-const folderRead = domaineId => {
-  const fileName = `${filesPath}${domaineId}/`
+const folderRead = (domaineId, dataInitial, epsgBlock, filesPath) => {
+  const fileName = path.join(filesPath, domaineId)
   const files = fs.readdirSync(fileName)
-  return files.map(file => logToData(file, obtainLogs(file)))
+  return files.map(file =>
+    logToData(file, obtainLogs(file, dataInitial, epsgBlock), dataInitial)
+  )
 }
 
 const arrayToCsv = (entree, sortie) => {
   //cree a partir d'un fichier de log un csv pouvant etre importe dans google sheets
-  const arr = JSON.parse(fs.readFileSync(`${filesPath}${entree}`, 'utf8'))
+  const arr = JSON.parse(fs.readFileSync(path.join(filesPath, entree), 'utf8'))
   const header = 'nom du fichier,epsg,probleme\n'
-  fs.writeFileSync(`${filesPath}${sortie}`, header, {
+  fs.writeFileSync(path.join(filesPath, sortie), header, {
     flag: 'w+',
     encoding: 'UTF-8'
   })
@@ -334,14 +362,14 @@ const arrayToCsv = (entree, sortie) => {
       ? (mess += `${mat[0]},,${mat[2]}\n`)
       : (mess += `${mat[0]},${mat[1]},${mat[2]}\n`)
 
-    fs.appendFileSync(`${filesPath}${sortie}`, mess, {
+    fs.appendFileSync(path.join(filesPath, sortie), mess, {
       flag: 'a+',
       encoding: 'UTF-8'
     })
   })
 }
 
-const LogDataSeparate = results => {
+const logDataSeparate = results => {
   let logs = []
   let datas = {}
   results.map(domaine => {
@@ -353,11 +381,14 @@ const LogDataSeparate = results => {
   })
   return [logs, datas]
 }
+/*
+const domainesResults = domainesIds.map(domaineId =>
+  folderRead(domaineId, dataInitial, blockEpsg)
+)
+const [logs, datas] = logDataSeparate(domainesResults)
 
-const domainesResults = domainesIds.map(folderRead)
-const [logs, datas] = LogDataSeparate(domainesResults)
-
-fs.writeFileSync(`${filesPath}log-error.json`, JSON.stringify(logs))
-fs.writeFileSync(`${filesPath}data-final.json`, JSON.stringify(datas))
+fs.writeFileSync(path.join(filesPath}log-error.json`, JSON.stringify(logs))
+fs.writeFileSync(path.join(filesPath}data-final.json`, JSON.stringify(datas))
 console.log(logs.length)
 arrayToCsv('log-error.json', 'logs-probleme.csv')
+process.exit()*/
