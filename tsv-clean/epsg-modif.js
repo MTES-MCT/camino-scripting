@@ -19,11 +19,13 @@ const pb = {
   LATLON_INSTEAD_XY: 'X/Y au lieu de lat/lon',
   UNITE_DEGRE_RADIAN: "probleme d'unite grad/degre",
   XY_INSTEAD_LATLON: 'lat/lon au lieu de X/Y',
-  PAS_DE_CONTOUR: 'pas de contour possible'
+  PAS_DE_CONTOUR: 'pas de contour possible',
+  PAS_DE_COHERENCE: "pas de coherences d'epsg"
 }
 
 const fs = require('fs')
 const path = require('path')
+const proj4 = require('proj4')
 const filesPath = path.join(process.cwd(), 'files/')
 const domainesIds = ['w', 'c', 'g', 'h', 'm']
 const blockEpsg = JSON.parse(
@@ -33,7 +35,65 @@ const dataInitial = JSON.parse(
   fs.readFileSync(path.join(filesPath, 'data-tsv.json'), 'utf8')
 )
 
+const proj4EpsgDefine = () => {
+  proj4.defs([
+    [
+      'EPSG:4326',
+      '+title=WGS 84 (long/lat) +proj=longlat +ellps=WGS84 +datum=WGS84 +units=degrees'
+    ],
+    [
+      'EPSG:27571',
+      '+proj=lcc +lat_1=49.50000000000001 +lat_0=49.50000000000001 +lon_0=0 +k_0=0.999877341 +x_0=600000 +y_0=1200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
+    ],
+    [
+      'EPSG:2971',
+      '+proj=utm + zone=22 + ellps=intl + towgs84=-186, 230, 110, 0, 0, 0, 0 + units=m + no_defs'
+    ],
+    [
+      'EPSG:27561',
+      '+proj=lcc +lat_1=49.50000000000001 +lat_0=49.50000000000001 +lon_0=0 +k_0=0.999877341 +x_0=600000 +y_0=200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
+    ],
+    ['EPSG:4171', '+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs'],
+    [
+      'EPSG:2154',
+      '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+    ],
+    ['EPSG:32630', '+proj=utm +zone=30 +datum=WGS84 +units=m +no_defs'],
+    ['EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs'],
+    ['EPSG:32622', '+proj=utm +zone=22 +datum=WGS84 +units=m +no_defs'],
+    [
+      'EPSG:3949',
+      '+proj=lcc +lat_1=48.25 +lat_2=49.75 +lat_0=49 +lon_0=3 +x_0=1700000 +y_0=8200000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+    ],
+    [
+      'EPSG:27573',
+      '+proj=lcc +lat_1=44.10000000000001 +lat_0=44.10000000000001 +lon_0=0 +k_0=0.999877499 +x_0=600000 +y_0=3200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
+    ],
+    [
+      'EPSG:2972',
+      '+proj=utm +zone=22 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+    ],
+    [
+      'EPSG:4275',
+      '+proj=longlat +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +no_defs'
+    ],
+    [
+      'EPSG:27572',
+      '+proj=lcc +lat_1=46.8 +lat_0=46.8 +lon_0=0 +k_0=0.99987742 +x_0=600000 +y_0=2200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
+    ],
+    [
+      'EPSG:4230',
+      '+proj=longlat +ellps=intl +towgs84=-87,-98,-121,0,0,0,0 +no_defs'
+    ],
+    [
+      'EPSG:4807',
+      '+proj=longlat +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +no_defs'
+    ]
+  ])
+}
+
 const epsgModif = async (blockEpsg, dataInitial, domainesIds, filesPath) => {
+  proj4EpsgDefine()
   const domainesResults = await Promise.all(
     domainesIds.map(domaineId =>
       folderRead(domaineId, dataInitial, blockEpsg, filesPath)
@@ -44,6 +104,18 @@ const epsgModif = async (blockEpsg, dataInitial, domainesIds, filesPath) => {
 }
 
 module.exports = epsgModif
+
+const gradtodeg = rad => {
+  return rad * 0.9
+}
+
+const gradCoordChange = ({ x, y }) => {
+  return { x: gradtodeg(x), y: gradtodeg(y) }
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI / 180)
+}
 
 const XYChange = coord => {
   return coord.replace(/ /g, '').replace(/,/g, '.')
@@ -157,6 +229,21 @@ const XYLatLonCheck = ({ x, y }, XYSuppose) => {
   if (isNaN(lon)) return 200 < lat || lat < -200
 
   return !(200 < lat || 200 < lon || lat < -200 || lon < -200)
+}
+
+function epsgPointCheck(coord1, coord2) {
+  var R = 6371 // Radius of the earth in km
+  var dLat = deg2rad(coord2.x - coord2.x) // deg2rad below
+  var dLon = deg2rad(coord2.y - coord2.y)
+  var a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(coord1.x)) *
+      Math.cos(deg2rad(coord2.x)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2)
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  var d = R * c // Distance in km
+  return d < 20
 }
 
 const dataAdd = (filename, epsg, probleme, correction) => {
@@ -315,6 +402,38 @@ const logCreate = (epsgData, descriptionListe, filePath, epsgBlock) => {
   }, [])
 }
 
+const epsgDifferenceVerif = (epsgData, correct) => {
+  const nbPoints = correct.length / epsgData.length
+  //On parcoure tout les points de chaque epsg en meme temps
+  let wgs84Data = []
+  for (let i = 0; i < nbPoints; i++) {
+    const wgs84Points = epsgData.reduce((acc, epsgElem) => {
+      const [epsg, coord] = [epsgElem.epsg, epsgElem.coord[i]]
+      if (typeof epsg == 'undefined' || isNaN(coord.x) || isNaN(coord.y))
+        return [...acc, { x: '', y: '' }]
+
+      const wgs84Point =
+        epsg == 4807
+          ? proj4(`EPSG:${epsg}`, 'EPSG:4326', gradCoordChange(coord))
+          : proj4(`EPSG:${epsg}`, 'EPSG:4326', coord)
+      return [...acc, wgs84Point]
+    }, [])
+    //On verifie pour chaque ensemble de points si ils sont cohérents les uns avec les autres, aka distance de moins de 20m
+    wgs84Points.forEach(coord1 => {
+      wgs84Points.forEach(coord2 => {
+        if (
+          !epsgPointCheck(coord1, coord2) &&
+          !(isNaN(coord1.x) || isNaN(coord1.y))
+        ) {
+          correct[i] = [pb.PAS_DE_COHERENCE, pb.A_VERIFIER]
+        }
+      })
+    })
+    wgs84Data.push(wgs84Points[0])
+  }
+  return wgs84Data
+}
+
 const logToData = (filePath, tableauLogs, dataInitial) => {
   //tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
   let logs = []
@@ -324,17 +443,37 @@ const logToData = (filePath, tableauLogs, dataInitial) => {
     correct: []
   }
   tableauLogs.map(tableauLog => {
+    //On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
+    const epsgCoord = tableauLog[0][0][0][1]
     datas.epsgData.push({
       file: filePath,
-      //On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
-      epsg: tableauLog[0][0][0][1],
+      epsg: epsgCoord,
       coord: []
     })
+    // datas.wgs84Data.push({
+    //   file: filePath,
+    //   epsgOrigine: epsgCoord,
+    //   coord: []
+    // })
     tableauLog.map(tableau => {
       logs.push(tableau[0][0])
       datas.correct.push(tableau[0][1])
-      datas.epsgData[datas.epsgData.length - 1].coord.push(tableau[1])
+      const coord = { x: parseFloat(tableau[1].x), y: parseFloat(tableau[1].y) }
+      datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
     })
+    // if (typeof epsgCoord == 'undefined' || isNaN(coord.x) || isNaN(coord.y)) {
+    //   datas.wgs84Data[datas.wgs84Data.length - 1].coord.push(coord)
+    // } else {
+    //   const pointWgs84 =
+    //     epsgCoord == 4807
+    //       ? proj4(`EPSG:${epsgCoord}`, 'EPSG:4326', gradCoordChange(coord))
+    //       : proj4(`EPSG:${epsgCoord}`, 'EPSG:4326', coord)
+    //   datas.wgs84Data[datas.wgs84Data.length - 1].coord.push(pointWgs84)
+    //}
+    datas['wgs84Data'] = {
+      file: filePath,
+      coord: epsgDifferenceVerif(datas.epsgData, datas.correct)
+    }
   })
   return [logs, datas]
 }
@@ -381,6 +520,7 @@ const logDataSeparate = results => {
   })
   return [logs, datas]
 }
+
 /*
 const domainesResults = domainesIds.map(domaineId =>
   folderRead(domaineId, dataInitial, blockEpsg)

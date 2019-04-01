@@ -83,24 +83,10 @@ const errorPriorityFind = errorArr => {
   return prio
 }
 
-const fileDomaineRefCreate = (pointDomaine, filesPath, domainesIds) => {
-  domainesIds.map(domaineId => {
-    const domaineObjet = pointDomaine[domaineId]
-    const csvDomaineRef = json2csv(domaineObjet)
-    const pathDataRef = path.join(
-      filesPath,
-      `titres-${domaineId}-points-references.csv`
-    )
-    fs.writeFileSync(pathDataRef, csvDomaineRef, {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
-  })
-}
-
 const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
   //id    titre_point_id    geo_systeme_id    coordonnee    domaine
   //g-cxx-rittershoffen-2017-oct01-mfr01-g01-c01-p001-4275
+  const n = epsgData.length
   return epsgData.reduce((acc, epsgValue, i) => {
     const geo_systeme_id = epsgValue.epsg
     epsgValue.coord.forEach((coordXY, j) => {
@@ -111,7 +97,7 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
       )}-c${contour.padStart(2, '0')}-p${point.padStart(3, '0')}`
       const id = `${titre_point_id}-${geo_systeme_id}`
       const coordonnee = `${coordXY.x},${coordXY.y}`
-      const probleme = correct[i * epsgData.length + j][1]
+      const probleme = correct[i * n + j][1]
       acc[id] = {
         id,
         titre_point_id,
@@ -124,38 +110,89 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
   }, {})
 }
 
-const dataDomaineRefWrite = (data, filesPath, domainesIds) => {
-  const fileNames = Object.keys(data)
-  //console.log(fileNames)
-  const dataFiles = fileNames.reduce((acc, fileName) => {
-    const error = errorCheck(fileName, data)
-    //Besoin de la prio? Me permet de savoir si le fichier est correct ou non (donc a ecrire ou non)
-    //--> Creation d'un log qui me dit pour chaque fichier si il est mis dans le csv ou non (id, rempli, probleme)
-    const prio = errorPriorityFind(error)
-    // J'ai besoin de faire une selection de l'epsg de preference? ou je les importe tous?
-    //--> j'importe tout dans references, et un seul avec epsg 4326 dans points
-    // Je crée un fichier avec plein de points! genre tous! si y'a pas epsg 4326 dedands pour un fichier, je le rajoute (ulterieurement)
-    if (prio <= 1) {
-      acc[fileName] = objectDomaineRefWrite(data[fileName])
-    }
+const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) => {
+  //id    coordonnees    groupe    contour    point    titre_etape_id    nom
+  //g-prx-lauterbourg-2011-pr101-dpu01-g01-c01-p001	8.020837797484726,49.01942826038932	1	1	1	g-prx-lauterbourg-2011-pr101-dpu01	1
 
+  return wgs84Data.coord.reduce((acc, coordXY, j) => {
+    const { groupe, contour, point, jorfId } = otherData[j]
+    const titre_etape_id = wgs84Data.file
+    const id = `${titre_etape_id}-g${groupe.padStart(
+      2,
+      '0'
+    )}-c${contour.padStart(2, '0')}-p${point.padStart(3, '0')}`
+    const coordonnee = `${coordXY.x},${coordXY.y}`
+    const probleme = correct[j][1]
+    acc[id] = {
+      id,
+      coordonnee,
+      groupe,
+      contour,
+      point,
+      titre_etape_id,
+      nom: jorfId,
+      probleme
+    }
     return acc
   }, {})
+}
 
+const dataDomaineRefWrite = (data, filesPath, domainesIds) => {
+  const fileNames = Object.keys(data)
+  const dataFiles = fileNames.reduce(
+    (acc, fileName) => {
+      const error = errorCheck(fileName, data)
+      //Besoin de la prio? Me permet de savoir si le fichier est correct ou non (donc a ecrire ou non)
+      //--> Creation d'un log qui me dit pour chaque fichier si il est mis dans le csv ou non (id, rempli, probleme)
+      const prio = errorPriorityFind(error)
+      if (prio <= 1) {
+        acc.ref[fileName] = objectDomaineRefWrite(data[fileName])
+        acc.wgs84[fileName] = objectDomaineWgs84Write(data[fileName])
+      }
+      return acc
+    },
+    { ref: {}, wgs84: {} }
+  )
   const pointDomaine = pointDomaineCreate(dataFiles)
-  fileDomaineRefCreate(pointDomaine, filesPath, domainesIds)
+  if (Object.keys(pointDomaine).length != 0) {
+    fileDomaineCreate(pointDomaine, filesPath, domainesIds)
+  }
   return pointDomaine
 }
 
 const pointDomaineCreate = dataFiles => {
-  return Object.keys(dataFiles).reduce((acc, key) => {
+  return Object.keys(dataFiles.ref).reduce((acc, key) => {
     const domaineId = key[0]
-    acc[domaineId] = acc[domaineId] || []
-    Object.keys(dataFiles[key]).forEach(dataPoint => {
-      acc[domaineId].push(dataFiles[key][dataPoint])
+    acc[domaineId] = acc[domaineId] || { ref: [], wgs84: [] }
+    Object.keys(dataFiles.ref[key]).forEach(dataPoint => {
+      acc[domaineId].ref.push(dataFiles.ref[key][dataPoint])
+    })
+    Object.keys(dataFiles.wgs84[key]).forEach(dataPoint => {
+      acc[domaineId].wgs84.push(dataFiles.wgs84[key][dataPoint])
     })
     return acc
   }, {})
+}
+
+const fileDomaineCreate = (pointDomaine, filesPath, domainesIds) => {
+  domainesIds.forEach(domaineId => {
+    const domaineObjet = pointDomaine[domaineId]
+    const csvDomaineRef = json2csv(domaineObjet.ref)
+    const csvDomaineWgs84 = json2csv(domaineObjet.wgs84)
+    const pathDataRef = path.join(
+      filesPath,
+      `titres-${domaineId}-points-references.csv`
+    )
+    fs.writeFileSync(pathDataRef, csvDomaineRef, {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+    const pathDataWgs84 = path.join(filesPath, `titres-${domaineId}-points.csv`)
+    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+  })
 }
 
 const fileWrite = (pathData, fileData, prio) => {
