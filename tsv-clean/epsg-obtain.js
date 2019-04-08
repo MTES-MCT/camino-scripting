@@ -8,19 +8,21 @@ A l'intérieur de ce dossier, les tsvs devront etre séparés en différents dos
 
 const fs = require('fs').promises
 const path = require('path')
-const filesPath = path.join(process.cwd(), 'files/')
 
-const epsgObtain = async (domainesIds, filesPath) => {
-  const domainesMatrix = await Promise.all(
-    domainesIds.map(domaineId => epsgFolderCreate(domaineId, filesPath))
+const epsgModify = listFilesData =>
+  listFilesData.reduce(
+    (acc, row) =>
+      row.reduce(
+        (acc, { filename, epsgData, otherData }) => ({
+          ...acc,
+          [filename.substring(2)]: { epsgData, otherData }
+        }),
+        acc
+      ),
+    {}
   )
-  const epsgMatrix = epsgModify(domainesMatrix)
-  return epsgMatrix
-}
 
-module.exports = epsgObtain
-
-const coordEpsgBuild = (dataCoordEpsg, lines, filePath) => [
+const coordEpsgBuild = (dataCoordEpsg, lines) => [
   ...dataCoordEpsg,
   ...lines[0].split('\t').reduce((acc, epsgId, i) => {
     // on sélectionne les coordonnées d'un epsg qui se trouvent
@@ -29,11 +31,9 @@ const coordEpsgBuild = (dataCoordEpsg, lines, filePath) => [
 
     const epsgInt = parseInt(epsgId)
     if (isNaN(epsgInt)) {
-      //console.log(`le fichier ${filePath} possede un epsg non numérique`)
       return acc
     }
     if (epsgInt < 1000 || epsgInt > 100000) {
-      //console.log(`Le fichier: ${filePath} a une valeur d'epsg non valide`)
       return acc
     }
 
@@ -49,44 +49,45 @@ const coordEpsgBuild = (dataCoordEpsg, lines, filePath) => [
   }, [])
 ]
 
-const dataBuild = async filePath => {
+const dataBuild = async (filesFolderPath, filePath) => {
   const lines = (await fs.readFile(
-    path.join(filesPath, filePath),
+    path.join(filesFolderPath, filePath),
     'utf8'
-  )).split('\r\n')
+  ))
+    .trim()
+    .split('\r\n')
   const data = {
     filename: filePath,
     epsgData: [],
     otherData: []
   }
-  if (lines.length <= 2) {
-    //console.log(`Le fichier: ${filePath} est vide`)
+  //le fichier est vide ou contient un header sans donnée
+  if (lines.length < 2) {
     return data
   }
 
-  data.epsgData = coordEpsgBuild(data.epsgData, lines, filePath)
+  data.epsgData = coordEpsgBuild(data.epsgData, lines)
 
   data.otherData = lines.slice(1).map(line => {
-    const [groupe, contour, point, jorfId, description] = line
-      .split('\t')
-      .splice(0, 5)
+    const [groupe, contour, point, jorfId, description] = line.split('\t')
     return { groupe, contour, point, jorfId, description }
   })
   return data
 }
 
-const epsgFolderCreate = async (folder, filesPath) => {
-  const files = await fs.readdir(path.join(filesPath, folder))
+const epsgFolderCreate = async (filesFolderPath, folder) => {
+  const files = await fs.readdir(path.join(filesFolderPath, folder))
   return Promise.all(
-    files.map(listMap => dataBuild(path.join(folder, listMap)))
+    files.map(file => dataBuild(filesFolderPath, path.join(folder, file)))
   )
 }
 
-const epsgModify = listFilesData => {
-  return listFilesData.reduce((acc, row) => {
-    row.forEach(({ filename, epsgData, otherData }) => {
-      acc[filename.substring(2)] = { epsgData, otherData }
-    })
-    return acc
-  }, {})
+const epsgObtain = async (domainesIds, filesFolderPath) => {
+  const domainesMatrix = await Promise.all(
+    domainesIds.map(domaineId => epsgFolderCreate(filesFolderPath, domaineId))
+  )
+  const epsgMatrix = epsgModify(domainesMatrix)
+  return epsgMatrix
 }
+
+module.exports = epsgObtain
