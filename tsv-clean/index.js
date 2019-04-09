@@ -4,7 +4,7 @@ const path = require('path')
 const epsgObtain = require('./epsg-obtain')
 const epsgModif = require('./epsg-modif')
 const epsgWrite = require('./epsg-write')
-const epsgImport = require('./epsg-import')
+const titreCorrespondance = require('./titres-correspondance')
 
 const run = async () => {
   try {
@@ -32,8 +32,7 @@ const run = async () => {
       filesPath,
       'graphiql_point_etape_demarche.json'
     ))
-    //rename epsgImport
-    const logCorrespondance = await epsgImport(dataWgs84, titresCamino)
+    const logCorrespondance = await titreCorrespondance(dataWgs84, titresCamino)
     await fs.writeFile(
       path.join(filesPath, 'logCorrespondance.json'),
       JSON.stringify(logCorrespondance)

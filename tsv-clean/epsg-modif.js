@@ -81,6 +81,14 @@ const proj4EpsgDefine = () => {
     [
       'EPSG:4807',
       '+proj=longlat +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +no_defs'
+    ],
+    [
+      'EPSG:27562',
+      '+proj=lcc +lat_1=46.8 +lat_0=46.8 +lon_0=0 +k_0=0.99987742 +x_0=600000 +y_0=200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
+    ],
+    [
+      'EPSG:27563',
+      '+proj=lcc +lat_1=44.10000000000001 +lat_0=44.10000000000001 +lon_0=0 +k_0=0.999877499 +x_0=600000 +y_0=200000 +a=6378249.2 +b=6356515 +towgs84=-168,-60,320,0,0,0,0 +pm=paris +units=m +no_defs'
     ]
   ])
 }
@@ -128,7 +136,7 @@ const gradCoordChange = ({ x, y }) => {
   return { x: gradtodeg(x), y: gradtodeg(y) }
 }
 
-const epsgDifferenceVerif = (epsgData, correct) => {
+const epsgDifferenceVerif = (fileName, epsgData, correct) => {
   const nbPoints = correct.length / epsgData.length
   //On parcoure tout les points de chaque epsg en meme temps
   let wgs84Data = []
@@ -140,8 +148,12 @@ const epsgDifferenceVerif = (epsgData, correct) => {
 
       const wgs84Point =
         epsg == 4807
-          ? proj4(`EPSG:${epsg}`, 'EPSG:4326', gradCoordChange(coord))
-          : proj4(`EPSG:${epsg}`, 'EPSG:4326', coord)
+          ? proj4(
+              `EPSG:${epsg}`,
+              'EPSG:4326',
+              gradCoordChange(Object.assign({}, coord))
+            )
+          : proj4(`EPSG:${epsg}`, 'EPSG:4326', Object.assign({}, coord))
       return [...acc, wgs84Point]
     }, [])
     //On verifie pour chaque ensemble de points si ils sont cohérents les uns avec les autres, aka distance de moins de 20m
@@ -187,7 +199,7 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
     })
     datas['wgs84Data'] = {
       file: fileName,
-      coord: epsgDifferenceVerif(datas.epsgData, datas.correct)
+      coord: epsgDifferenceVerif(fileName, datas.epsgData, datas.correct)
     }
   })
   return { logs, datas }

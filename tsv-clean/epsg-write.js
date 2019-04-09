@@ -9,58 +9,6 @@ const fs = require('fs')
 const path = require('path')
 const json2csv = require('json2csv').parse
 
-const fileWrite = (pathData, fileData, prio) => {
-  const epsgData = fileData.epsgData
-  let epsgListe = ''
-  epsgData.map(epsgElem => {
-    epsgListe += `\t${epsgElem.epsg}\t${epsgElem.epsg}`
-  })
-  const header = `groupe\tcontour\tpoint\tjorf_id\tdescription${epsgListe}`
-  fs.writeFileSync(pathData, header, { flag: 'a+', encoding: 'UTF-8' })
-  //on regarde si il y a des données dans le fichier.
-  if (fileData.otherData.length == 0) return
-
-  fileData.otherData.forEach(
-    ({ groupe, contour, point, jorfId, description }, j) => {
-      let mess = `\n${groupe}\t${contour}\t${point}\t${jorfId}\t${description}`
-
-      epsgData.map(epsgElem => {
-        typeof epsgElem.coord[j] == 'undefined'
-          ? (mess += '')
-          : prio == 1
-          ? (mess += `\t${epsgElem.coord[j].y}\t${epsgElem.coord[j].x}`)
-          : (mess += `\t${epsgElem.coord[j].x}\t${epsgElem.coord[j].y}`)
-      })
-      fs.appendFileSync(pathData, mess, { flag: 'a+', encoding: 'UTF-8' })
-    }
-  )
-}
-
-const dataWrite = (data, filesPath) => {
-  const fileNames = Object.keys(data)
-  const prioListe = fileNames.map(fileName => {
-    const error = errorCheck(fileName, data)
-    const prio = errorPriorityFind(error)
-    let folder = ''
-    //On assigne un dossier différent ou stocker les données en fonction de leur ordre de priorité
-    prio == 0
-      ? (folder = 'OK')
-      : prio == 1
-      ? (folder = 'corrige')
-      : prio == 2
-      ? (folder = 'a_completer')
-      : prio == 3
-      ? (folder = 'a_verifier')
-      : prio == 4
-      ? (folder = 'inversion_degre_XY')
-      : (folder = 'inutilisable')
-    const writePath = path.join(filesPath, 'clean_data/', folder, fileName)
-    fileWrite(writePath, data[fileName], prio)
-    return prio
-  })
-  return prioListe
-}
-
 const fileDomaineCreate = (pointDomaine, filesPath, domainesIds) => {
   domainesIds.forEach(domaineId => {
     const domaineObjet = pointDomaine[domaineId]
@@ -82,22 +30,30 @@ const fileDomaineCreate = (pointDomaine, filesPath, domainesIds) => {
   })
 }
 
-const pointDomaineCreate = dataFiles => {
-  return Object.keys(dataFiles.ref).reduce((acc, key) => {
+const pointDomaineCreate = dataFiles =>
+  Object.keys(dataFiles.ref).reduce((acc, key) => {
     const domaineId = key[0]
     acc[domaineId] = acc[domaineId] || { ref: [], wgs84: [] }
-    Object.keys(dataFiles.ref[key]).forEach(dataPoint => {
-      acc[domaineId].ref.push(dataFiles.ref[key][dataPoint])
-    })
-    Object.keys(dataFiles.wgs84[key]).forEach(dataPoint => {
-      acc[domaineId].wgs84.push(dataFiles.wgs84[key][dataPoint])
-    })
+
+    acc[domaineId].ref = [
+      ...acc[domaineId].ref,
+      ...Object.keys(dataFiles.ref[key]).reduce(
+        (acc, dataPoint) => [...acc, dataFiles.ref[key][dataPoint]],
+        []
+      )
+    ]
+    acc[domaineId].wgs84 = [
+      ...acc[domaineId].wgs84,
+      ...Object.keys(dataFiles.wgs84[key]).reduce(
+        (acc, dataPoint) => [...acc, dataFiles.wgs84[key][dataPoint]],
+        []
+      )
+    ]
     return acc
   }, {})
-}
 
-const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) => {
-  return wgs84Data.coord.reduce((acc, coordXY, j) => {
+const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
+  wgs84Data.coord.reduce((acc, coordXY, j) => {
     if (otherData.length == 0) return acc
 
     const { groupe, contour, point, jorfId } = otherData[j]
@@ -120,7 +76,6 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) => {
     }
     return acc
   }, {})
-}
 
 const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
   const n = epsgData.length
@@ -176,12 +131,9 @@ const errorPriorityFind = errorArr => {
 }
 
 const errorCheck = (fileName, data) => {
-  const [epsgData, logError] = [data[fileName].epsgData, data[fileName].correct]
+  const { epsgData, correct: logError } = data[fileName]
   if (epsgData.length == 0) {
-    const errorArr = logError.map(elem => {
-      return [elem[0], elem[1]]
-    })
-    return errorArr
+    return logError.map(elem => elem.slice(0, 2))
   }
 
   const n = epsgData[0].coord.length
@@ -193,7 +145,7 @@ const errorCheck = (fileName, data) => {
       checkArr.push(value)
       return [...acc, [[elem[0], value]]]
     }
-    return [...acc]
+    return acc
   }, [])
 }
 
@@ -201,11 +153,11 @@ const dataDomaineWrite = (data, filesPath, domainesIds) => {
   const fileNames = Object.keys(data)
   const dataFiles = fileNames.reduce(
     (acc, fileName) => {
-      const file = fileName.substring(0, fileName.length - 4)
+      const file = fileName.slice(0, -4)
       const error = errorCheck(fileName, data)
       const prio = errorPriorityFind(error)
       //On choisit la priorité maximale que l'on veut intégrer dans le csv
-      if (prio <= 5) {
+      if (prio <= 1) {
         acc.ref[file] = objectDomaineRefWrite(data[fileName])
         acc.wgs84[file] = objectDomaineWgs84Write(data[fileName])
       }
@@ -220,8 +172,7 @@ const dataDomaineWrite = (data, filesPath, domainesIds) => {
   return dataFiles.wgs84
 }
 
-const epsgWrite = async (domainesIds, filesPath, dataInitial) => {
-  return dataDomaineWrite(dataInitial, filesPath, domainesIds)
-}
+const epsgWrite = async (domainesIds, filesPath, dataInitial) =>
+  dataDomaineWrite(dataInitial, filesPath, domainesIds)
 
 module.exports = epsgWrite
