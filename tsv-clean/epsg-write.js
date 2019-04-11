@@ -8,8 +8,9 @@ Il peut aussi créer un fichier csv contenant les erreurs
 const fs = require('fs')
 const path = require('path')
 const json2csv = require('json2csv').parse
+const tsvExistenceCheck = require('./titres-correspondance.js')
 
-const fileDomaineCreate = (pointDomaine, filesPath, domainesIds) => {
+const fileDomaineCreate = (domainesIds, filesPath, pointDomaine) => {
   domainesIds.forEach(domaineId => {
     const domaineObjet = pointDomaine[domaineId]
     const csvDomaineRef = json2csv(domaineObjet.ref)
@@ -149,7 +150,7 @@ const errorCheck = (fileName, data) => {
   }, [])
 }
 
-const dataDomaineWrite = (data, filesPath, domainesIds) => {
+const dataDomaineWrite = (data, filesPath, domainesIds, titresCamino) => {
   const fileNames = Object.keys(data)
   const dataFiles = fileNames.reduce(
     (acc, fileName) => {
@@ -167,7 +168,7 @@ const dataDomaineWrite = (data, filesPath, domainesIds) => {
   )
   const pointDomaine = pointDomaineCreate(dataFiles)
   if (Object.keys(pointDomaine).length != 0) {
-    fileDomaineCreate(pointDomaine, filesPath, domainesIds)
+    fileDomaineCreate(domainesIds, filesPath, pointDomaine)
   }
   return dataFiles.wgs84
 }
