@@ -55,7 +55,7 @@ const dataBuild = async (filesFolderPath, filePath) => {
     'utf8'
   ))
     .trim()
-    .split('\r\n')
+    .split('\n')
   const data = {
     filename: filePath,
     epsgData: [],
@@ -67,7 +67,6 @@ const dataBuild = async (filesFolderPath, filePath) => {
   }
 
   data.epsgData = coordEpsgBuild(data.epsgData, lines)
-
   data.otherData = lines.slice(1).map(line => {
     const [groupe, contour, point, jorfId, description] = line.split('\t')
     return { groupe, contour, point, jorfId, description }

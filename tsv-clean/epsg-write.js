@@ -8,7 +8,7 @@ Il peut aussi créer un fichier csv contenant les erreurs
 const fs = require('fs')
 const path = require('path')
 const json2csv = require('json2csv').parse
-const tsvExistenceCheck = require('./titres-correspondance.js')
+const titreCorrespondance = require('./titres-correspondance')
 
 const fileDomaineCreate = (domainesIds, filesPath, pointDomaine) => {
   domainesIds.forEach(domaineId => {
@@ -38,45 +38,105 @@ const pointDomaineCreate = dataFiles =>
 
     acc[domaineId].ref = [
       ...acc[domaineId].ref,
-      ...Object.keys(dataFiles.ref[key]).reduce(
-        (acc, dataPoint) => [...acc, dataFiles.ref[key][dataPoint]],
+      ...dataFiles.ref[key].reduce(
+        (acc, dataPoint) => [...acc, ...dataPoint],
         []
       )
     ]
+    if (dataFiles.wgs84[key] === undefined) return acc
+
     acc[domaineId].wgs84 = [
       ...acc[domaineId].wgs84,
-      ...Object.keys(dataFiles.wgs84[key]).reduce(
-        (acc, dataPoint) => [...acc, dataFiles.wgs84[key][dataPoint]],
+      ...dataFiles.wgs84[key].reduce(
+        (acc, dataPoint) => [...acc, dataPoint],
         []
       )
     ]
     return acc
   }, {})
+
+const refPointsSelection = (refPoints, tsvCaminoExistence) => {
+  const pointsRefCamino = tsvCaminoExistence.pointsReference
+  const pointsCaminoNombre = pointsRefCamino.length
+  if (pointsCaminoNombre === 0) return refPoints
+
+  const refPointsFiltered = refPoints.map(epsgPoints =>
+    epsgPoints.filter(epsgPoint => {
+      epsgPoint.id = `${tsvCaminoExistence.etape}-${epsgPoint.id
+        .split('-')
+        .slice(-4)
+        .join('-')}`
+      epsgPoint.titrePointId = epsgPoint.id
+        .split('-')
+        .slice(0, -1)
+        .join('-')
+      pointsRefCamino.forEach(pointsNomCamino => {
+        const pointExiste = pointsNomCamino.some((pointNomCamino, i) => {
+          if (
+            pointNomCamino
+              .split('-')
+              .slice(-4)
+              .join('-') !==
+            epsgPoint.id
+              .split('-')
+              .slice(-4)
+              .join('-')
+          )
+            return false
+
+          return true
+        })
+        return !pointExiste
+      })
+    })
+  )
+  return refPointsFiltered
+}
+
+const wgs84PointsSelection = (wgs84Points, tsvCaminoExistence) => {
+  const pointsNomCamino = tsvCaminoExistence.pointsWgs84
+
+  const wgs84PointsFiltered = wgs84Points.filter(wgs84Point => {
+    wgs84Point.titreEtapeId = tsvCaminoExistence.etape
+    wgs84Point.id = `${wgs84Point.titreEtapeId}-${wgs84Point.id
+      .split('-')
+      .slice(-3)
+      .join('-')}`
+
+    const pointExiste = pointsNomCamino.some((pointNomCamino, i) => {
+      if (pointNomCamino !== wgs84Point.id) return false
+    })
+    return !pointExiste
+  })
+  return wgs84PointsFiltered
+}
 
 const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
   wgs84Data.coord.reduce((acc, coordXY, j) => {
     if (otherData.length == 0) return acc
 
     const { groupe, contour, point, jorfId } = otherData[j]
-    const titreEtapeId = wgs84Data.file.substring(0, wgs84Data.file.length - 4)
+    const titreEtapeId = wgs84Data.file.slice(0, -4)
     const id = `${titreEtapeId}-g${groupe.padStart(2, '0')}-c${contour.padStart(
       2,
       '0'
     )}-p${point.padStart(3, '0')}`
-    const coordonnee = `${coordXY.x},${coordXY.y}`
+    const coordonnees = `${coordXY.x}|${coordXY.y}`
+      .replace(',', '.')
+      .replace('|', ',')
     const probleme = correct[j].correction
-    acc[id] = {
+    const wgs84Point = {
       id,
-      coordonnee,
+      coordonnees,
       groupe,
       contour,
       point,
       titreEtapeId,
-      nom: jorfId,
-      probleme
+      nom: jorfId
+      //,probleme
     }
-    return acc
-  }, {})
+    return [...acc, wgs84Point]
+  }, [])
 
 const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
   const n = epsgData.length
@@ -84,28 +144,28 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
     const geoSystemeId = epsgValue.epsg
     if (!geoSystemeId) return acc
 
-    epsgValue.coord.forEach((coordXY, j) => {
+    const refPoints = epsgValue.coord.reduce((acc2, coordXY, j) => {
       const { groupe, contour, point } = otherData[j]
-      const titrePointId = `${epsgValue.file.substring(
-        0,
-        epsgValue.file.length - 4
-      )}-g${groupe.padStart(2, '0')}-c${contour.padStart(
+      const titrePointId = `${epsgValue.file.slice(0, -4)}-g${groupe.padStart(
         2,
         '0'
-      )}-p${point.padStart(3, '0')}`
+      )}-c${contour.padStart(2, '0')}-p${point.padStart(3, '0')}`
       const id = `${titrePointId}-${geoSystemeId}`
-      const coordonnee = `${coordXY.x},${coordXY.y}`
+      const coordonnees = `${coordXY.x}|${coordXY.y}`
+        .replace(',', '.')
+        .replace('|', ',')
       const probleme = correct[i * n + j].correction
-      acc[id] = {
+      const refPoint = {
         id,
         titrePointId,
         geoSystemeId,
-        coordonnee,
-        probleme
+        coordonnees
+        //,probleme
       }
-    })
-    return acc
-  }, {})
+      return [...acc2, refPoint]
+    }, [])
+    return [...acc, refPoints]
+  }, [])
 }
 
 const errorPriorityFind = errorArr => {
@@ -115,8 +175,8 @@ const errorPriorityFind = errorArr => {
   const priorityError = {
     inutilisable: 5,
     inversionEpsg: 4,
-    aVerifier: 3,
-    aCompleter: 2,
+    aCompleter: 3,
+    aVerifier: 2,
     inversionColonnes: 1,
     OK: 0
   }
@@ -132,25 +192,25 @@ const errorPriorityFind = errorArr => {
 }
 
 const errorCheck = (fileName, data) => {
-  const { epsgData, correct: logError } = data[fileName]
+  const { epsgData, correct } = data[fileName]
   if (epsgData.length == 0) {
-    return logError.map(elem => elem.slice(0, 2))
+    return [correct.probleme, correct.correction]
   }
 
   const n = epsgData[0].coord.length
-  return logError.reduce((acc, elem, i) => {
+  return correct.reduce((acc, elem, i) => {
     let checkArr = []
     if (i % n == 0) checkArr = []
-    const value = elem[1]
+    const value = elem.correction
     if (!checkArr.includes(value)) {
       checkArr.push(value)
-      return [...acc, [[elem[0], value]]]
+      return [...acc, [[elem.probleme, value]]]
     }
     return acc
   }, [])
 }
 
-const dataDomaineWrite = (data, filesPath, domainesIds, titresCamino) => {
+const dataDomaineWrite = (data, filesPath, titresCamino, domainesIds) => {
   const fileNames = Object.keys(data)
   const dataFiles = fileNames.reduce(
     (acc, fileName) => {
@@ -158,22 +218,41 @@ const dataDomaineWrite = (data, filesPath, domainesIds, titresCamino) => {
       const error = errorCheck(fileName, data)
       const prio = errorPriorityFind(error)
       //On choisit la priorité maximale que l'on veut intégrer dans le csv
-      if (prio <= 1) {
-        acc.ref[file] = objectDomaineRefWrite(data[fileName])
-        acc.wgs84[file] = objectDomaineWgs84Write(data[fileName])
-      }
+      if (prio > 2) return acc
+
+      //On regarde si une étape existe pour ce tsv dans Camino
+      const refPoints = objectDomaineRefWrite(data[fileName])
+      const wgs84Points = objectDomaineWgs84Write(data[fileName])
+      const tsvCaminoExistence = titreCorrespondance(
+        file,
+        titresCamino,
+        wgs84Points,
+        refPoints
+      )
+      acc.logCorrespondance.push(tsvCaminoExistence)
+      if (tsvCaminoExistence.etape.length === 0) return acc
+
+      //Rajouter un check pour savoir si le point existe et si oui si il est identique
+      const pointsRefSelect = refPointsSelection(refPoints, tsvCaminoExistence)
+      const pointsWgs84Select = wgs84PointsSelection(
+        wgs84Points,
+        tsvCaminoExistence
+      )
+      if (pointsWgs84Select.length !== 0) acc.wgs84[file] = pointsWgs84Select
+      if (pointsRefSelect.length !== 0) acc.ref[file] = pointsRefSelect
+
       return acc
     },
-    { ref: {}, wgs84: {} }
+    { ref: {}, wgs84: {}, logCorrespondance: [] }
   )
   const pointDomaine = pointDomaineCreate(dataFiles)
   if (Object.keys(pointDomaine).length != 0) {
     fileDomaineCreate(domainesIds, filesPath, pointDomaine)
   }
-  return dataFiles.wgs84
+  return json2csv(dataFiles.logCorrespondance)
 }
 
-const epsgWrite = async (domainesIds, filesPath, dataInitial) =>
-  dataDomaineWrite(dataInitial, filesPath, domainesIds)
+const epsgWrite = async (domainesIds, filesPath, titresCamino, dataInitial) =>
+  dataDomaineWrite(dataInitial, filesPath, titresCamino, domainesIds)
 
 module.exports = epsgWrite
