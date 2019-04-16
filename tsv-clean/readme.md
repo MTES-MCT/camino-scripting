@@ -1,22 +1,11 @@
 # Camino clean tsv
 
-Script pour nettoyer les tsv sur les titres miniers et les trier en ordre de priorité pour la correction manuelle.
+Script pour nettoyer les tsv sur les titres miniers et les trier pour la correction manuelle et l'import dans Camino.
 
-- OK: le tsv est correct
-- InversionXYDegre: le fichier a des colonnes qui sont inversees. Pour l'instant, inversion manuelle de ces dernières
-- aCompleter: Necessite de rentrer les coordonnées de manière manuelle, possede une description
-- aVerifier: fichier a regarder et a modifier, possibilité de mauvais epsg ou de mauvais points
-- Inutilisable: fichier inutilisable, sans description et sans point
-
-Suite à cela, on peut écrire ces fichiers dans des tsv propres, stockées dans 5 dossiers différents portant les noms ci dessus, mais l'on peut aussi écrire un fichier csv poubant etre integre sur le drive.
-
-- epsg-obtain recupere les fichiers
-- epsg-modif les nettoie
-- epsg-write les ecrit
-- index execute ces trois scripts à la suite
-
+On regroupe les tsvs de chaque domaine dans des fichiers csv permettant l'import dans Camino.
+Création d'un log des erreurs permettant d'identifier si le tsv est intégrable dans Camino, si le point existe déjà dans Camino, si le tsv reste à compléter manuellement ou si le tsv ne contient pas de points ou est inutilisable 
 
 ```bash
-# Cree un ficier csv pouvant etre integre au dossier google drive
+# Cree un ficier csv pour chaque domaine pouvant etre integre au dossier partagé de Camino
 node index.js
 ```
