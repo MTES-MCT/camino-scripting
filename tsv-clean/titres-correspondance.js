@@ -33,8 +33,8 @@ const ignoreDate = titreString => {
   return !isNaN(titreTable[titreTable.length - 1])
     ? filterTable(titreTable, 1)
     : !isNaN(titreTable[titreTable.length - 2])
-    ? filterTable(titreTable, 2)
-    : filterTable(titreTable, 3)
+      ? filterTable(titreTable, 2)
+      : filterTable(titreTable, 3)
 }
 
 const ignoreAccent = titreString =>

@@ -21,7 +21,8 @@ const pb = {
   XY_INSTEAD_LATLON: 'lat/lon au lieu de X/Y',
   PAS_DE_CONTOUR: 'pas de contour possible',
   PAS_DE_COHERENCE: "pas de coherences d'epsg",
-  MISSING_DESC: 'manque de description'
+  MISSING_DESC: 'manque de description',
+  EPSG_INCONNU: 'epsg non supporté'
 }
 
 const fs = require('fs')
@@ -419,7 +420,17 @@ const XYLatLonCheck = ({ x, y }, isEpsgProjectionCorrect) => {
 const logCreate = (epsgData, descriptionListe, filePath, epsgContours) => {
   return epsgData.reduce((acc, { epsg, coord }) => {
     let tableauLog = []
-    const epsgBound = epsgContours[epsg].coord
+    const contour = epsgContours[epsg]
+    if (!contour) {
+      // throw new Error(`EPSG non supporté : ${epsg}`)
+      return [
+        ...acc,
+        coord.map(({ x, y }, j) =>
+          dataAdd(filePath, epsg, false, pb.EPSG_INCONNU, { x, y })
+        )
+      ]
+    }
+    const epsgBound = contour.coord
     const isEpsgProjected = epsgContours[epsg].projected
     coord.map(({ x, y }, j) => {
       XYLatLonCheck({ x, y }, isEpsgProjected)
