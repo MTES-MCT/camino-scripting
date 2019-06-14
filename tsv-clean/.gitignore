@@ -1,14 +1,8 @@
 package-lock.json
 /files/c/*
-!/files/c/.keep
 /files/g/*
-!/files/g/.keep
 /files/h/*
-!/files/h/.keep
 /files/m/*
-!/files/m/.keep
 /files/w/*
-!/files/w/.keep
 /files/results/*
-!/files/results/.keep
 /files/graphiql-point-etape-demarche.json
