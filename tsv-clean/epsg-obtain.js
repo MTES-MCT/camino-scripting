@@ -77,7 +77,12 @@ const dataBuild = async (filesFolderPath, filePath) => {
 const epsgFolderCreate = async (filesFolderPath, folder) => {
   const files = await fs.readdir(path.join(filesFolderPath, folder))
   return Promise.all(
-    files.map(file => dataBuild(filesFolderPath, path.join(folder, file)))
+    files.reduce((acc, file) => {
+      if (file !== '.keep')
+        return [...acc, dataBuild(filesFolderPath, path.join(folder, file))]
+
+      return acc
+    }, [])
   )
 }
 

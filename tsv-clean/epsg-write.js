@@ -1,6 +1,5 @@
 /*
 Fichier qui ecrit les titres miniers modifiés par epsg-modif
-Il utilise 5 dossiers: OK, Inutilisable, A Completer, A verifier, Inversion degre XY
 Il range aussi les titres dans chaque dossier dependant du log des erreurs
 Il peut aussi créer un fichier csv contenant les erreurs
 */
@@ -189,6 +188,8 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
     const coordonnees = `${coordXY.x}|${coordXY.y}`
       .replace(',', '.')
       .replace('|', ',')
+    if (coordonnees === 'NaN,NaN' && correct[j].correction === 'inversionEpsg')
+      correct[j].correction = 'aCompleter'
     const probleme = correct[j].correction
     const wgs84Point = {
       id,
@@ -198,15 +199,14 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       point,
       titreEtapeId,
       nom: jorfId,
-      description
-      //,probleme
+      description,
+      probleme
     }
     return [...acc, wgs84Point]
   }, [])
 
-const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
-  const n = epsgData.length
-  return epsgData.reduce((acc, epsgValue, i) => {
+const objectDomaineRefWrite = ({ epsgData, otherData, correct }, fileName) => {
+  return epsgData.reduce((acc, epsgValue) => {
     const geoSystemeId = epsgValue.epsg
     if (!geoSystemeId) return acc
 
@@ -220,13 +220,18 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
       const coordonnees = `${coordXY.x}|${coordXY.y}`
         .replace(',', '.')
         .replace('|', ',')
-      const probleme = correct[i * n + j].correction
+      if (
+        coordonnees === 'NaN,NaN' &&
+        correct[j].correction === 'inversionEpsg'
+      )
+        correct[j].correction = 'aCompleter'
+      const probleme = correct[j].correction
       const refPoint = {
         id,
         titrePointId,
         geoSystemeId,
-        coordonnees
-        //,probleme
+        coordonnees,
+        probleme
       }
       return [...acc2, refPoint]
     }, [])
@@ -236,13 +241,13 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) => {
 
 const errorPriorityFind = errorArr => {
   //Si pas d'élément, on retourne le plus haut niveau de priorité
-  if (errorArr.length == 0) return 5
+  if (errorArr[0] === undefined) return 5
 
   const priorityError = {
     inutilisable: 5,
     inversionEpsg: 4,
-    aCompleter: 3,
-    aVerifier: 2,
+    aVerifier: 3,
+    aCompleter: 2,
     inversionColonnes: 1,
     OK: 0
   }
@@ -267,6 +272,7 @@ const errorCheck = (fileName, data) => {
   return correct.reduce((acc, elem, i) => {
     let checkArr = []
     if (i % n == 0) checkArr = []
+
     const value = elem.correction
     if (!checkArr.includes(value)) {
       checkArr.push(value)
@@ -282,13 +288,13 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
     (acc, fileName) => {
       const file = fileName.slice(0, -4)
       //<!> Problème sur cette partie du code actuellement, qui permet de vérifier si le tsv est conforme ou non
-      // const error = errorCheck(fileName, data)
-      // const prio = errorPriorityFind(error)
+      const error = errorCheck(fileName, data)
+      const prio = errorPriorityFind(error)
       //On choisit la priorité maximale que l'on veut intégrer dans le csv
-      //if (prio > 2) return acc
+      if (prio > 5) return acc
 
       //On regarde si une étape existe pour ce tsv dans Camino
-      const refPoints = objectDomaineRefWrite(data[fileName])
+      const refPoints = objectDomaineRefWrite(data[fileName], fileName)
       const wgs84Points = objectDomaineWgs84Write(data[fileName])
       const tsvCaminoExistence = titreCorrespondance(
         file,
