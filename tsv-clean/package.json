@@ -1,0 +1,51 @@
+{
+  "name": "tsv",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^11.11.4",
+    "eslint": "^5.15.2",
+    "eslint-config-prettier": "^4.1.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.16.0",
+    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "prettier": "^1.16.4"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
+  "eslintConfig": {
+    "extends": [
+      "standard",
+      "prettier",
+      "prettier/standard"
+    ],
+    "env": {
+      "node": true
+    },
+    "plugins": [
+      "prettier"
+    ],
+    "rules": {
+      "prettier/prettier": [
+        "error"
+      ]
+    }
+  },
+  "dependencies": {
+    "flatmap": "0.0.3",
+    "geojson-rewind": "^0.3.1",
+    "json2csv": "^4.4.1",
+    "jsontocsv": "^0.3.0",
+    "proj4": "^2.5.0"
+  }
+}

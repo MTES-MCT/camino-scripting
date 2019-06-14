@@ -103,7 +103,7 @@ const logDataSeparate = results =>
   results.reduce(
     (acc, domaine) => {
       domaine.forEach(dataDomaine => {
-        const fileName = dataDomaine.logs[0].fileName
+        const fileName = dataDomaine.datas.wgs84Data.file
         acc.tsvDatasCleaned[fileName] = dataDomaine.datas
         acc.logsCleaning = [
           ...acc.logsCleaning,
@@ -187,28 +187,37 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
     otherData: dataInitial[fileName].otherData,
     correct: []
   }
-  tableauLogs.map(tableauLog => {
-    //On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
-    const epsgCoord = tableauLog[0].log.epsg
-    datas.epsgData.push({
-      file: fileName,
-      epsg: epsgCoord,
-      coord: []
-    })
-    tableauLog.map(tableau => {
-      logs.push(tableau.log)
-      datas.correct.push(tableau.correct)
-      const coord = {
-        x: parseFloat(tableau.coord.x),
-        y: parseFloat(tableau.coord.y)
+  if (tableauLogs[0].data !== undefined)
+    tableauLogs.map(tableauLog => {
+      //On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
+      const epsgCoord = tableauLog.data[0].log.epsg
+      datas.epsgData.push({
+        file: fileName,
+        epsg: epsgCoord,
+        coord: []
+      })
+      tableauLog.data.map(tableau => {
+        logs.push(tableau.log)
+        datas.correct.push(tableau.correct)
+        const coord = {
+          x: parseFloat(tableau.coord.x),
+          y: parseFloat(tableau.coord.y)
+        }
+        datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
+      })
+      if (tableauLog.priorite) {
+        datas['wgs84Data'] = {
+          file: fileName,
+          coord: epsgDifferenceVerif(fileName, datas.epsgData, datas.correct)
+        }
       }
-      datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
     })
+  if (datas.wgs84Data === undefined) {
     datas['wgs84Data'] = {
       file: fileName,
       coord: epsgDifferenceVerif(fileName, datas.epsgData, datas.correct)
     }
-  })
+  }
   return { logs, datas }
 }
 
@@ -418,12 +427,16 @@ const XYLatLonCheck = ({ x, y }, isEpsgProjectionCorrect) => {
 
 const logCreate = (epsgData, descriptionListe, filePath, epsgContours) => {
   return epsgData.reduce((acc, { epsg, coord }) => {
-    let tableauLog = []
+    let tableauLog = { priorite: false, data: [] }
+    if (epsg.slice(-1) === '*') {
+      epsg = epsg.slice(0, -1)
+      tableauLog.priorite = true
+    }
     const epsgBound = epsgContours[epsg].coord
     const isEpsgProjected = epsgContours[epsg].projected
     coord.map(({ x, y }, j) => {
       XYLatLonCheck({ x, y }, isEpsgProjected)
-        ? tableauLog.push(
+        ? tableauLog.data.push(
             coordModif(
               { x, y },
               epsgBound,
@@ -433,7 +446,7 @@ const logCreate = (epsgData, descriptionListe, filePath, epsgContours) => {
               isEpsgProjected
             )
           )
-        : tableauLog.push(
+        : tableauLog.data.push(
             dataAdd(
               filePath,
               epsg,

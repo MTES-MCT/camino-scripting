@@ -9,21 +9,83 @@ const fs = require('fs')
 const path = require('path')
 const json2csv = require('json2csv').parse
 const titreCorrespondance = require('./titres-correspondance')
+const geojsonFeatureMultiPolygon = require('./geojson')
 
-const fileDomaineCreate = (domainesIds, filesPath, pointDomaine) => {
+const geojsonCsvTsvCreate = (resultsPath, dataFiles) => {
+  const filesStore = path.join(resultsPath, 'export')
+  if (!fs.existsSync(filesStore)) {
+    fs.mkdirSync(filesStore)
+  }
+  Object.keys(dataFiles.wgs84).forEach(titreEtapeId => {
+    const refData = dataFiles.ref[titreEtapeId].reduce(
+      (arr, red) => [...red, ...arr],
+      []
+    )
+    if (refData === undefined) return
+
+    const wgs84Data = dataFiles.wgs84[titreEtapeId]
+    const dataPath = path.join(filesStore, titreEtapeId)
+    if (!fs.existsSync(dataPath)) {
+      fs.mkdirSync(dataPath)
+    }
+
+    const csvDomaineRef = json2csv(refData)
+    const csvDomaineWgs84 = json2csv(wgs84Data)
+    const pathDataRef = path.join(
+      dataPath,
+      `${titreEtapeId}-points-references.csv`
+    )
+    fs.writeFileSync(pathDataRef, csvDomaineRef, {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+    const pathDataWgs84 = path.join(dataPath, `${titreEtapeId}-points.csv`)
+    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+    const geojsonData = wgs84Data.reduce((acc, wgs84Point) => {
+      return [
+        ...acc,
+        {
+          groupe: wgs84Point.groupe,
+          contour: wgs84Point.contour,
+          point: wgs84Point.point,
+          coordonnees: {
+            x: parseFloat(wgs84Point.coordonnees.split(',')[0]),
+            y: parseFloat(wgs84Point.coordonnees.split(',')[1])
+          }
+        }
+      ]
+    }, [])
+    const geojson = geojsonFeatureMultiPolygon(geojsonData)
+    const pathGeojson = path.join(dataPath, `${titreEtapeId}.geojson`)
+    fs.writeFileSync(pathGeojson, JSON.stringify(geojson), {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+  })
+}
+
+const fileDomaineCreate = (domainesIds, resultsPath, pointDomaine) => {
   domainesIds.forEach(domaineId => {
     const domaineObjet = pointDomaine[domaineId]
+    if (domaineObjet.ref.length === 0) return
+
     const csvDomaineRef = json2csv(domaineObjet.ref)
     const csvDomaineWgs84 = json2csv(domaineObjet.wgs84)
     const pathDataRef = path.join(
-      filesPath,
+      resultsPath,
       `titres-${domaineId}-points-references.csv`
     )
     fs.writeFileSync(pathDataRef, csvDomaineRef, {
       flag: 'w+',
       encoding: 'UTF-8'
     })
-    const pathDataWgs84 = path.join(filesPath, `titres-${domaineId}-points.csv`)
+    const pathDataWgs84 = path.join(
+      resultsPath,
+      `titres-${domaineId}-points.csv`
+    )
     fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, {
       flag: 'w+',
       encoding: 'UTF-8'
@@ -59,6 +121,8 @@ const refPointsSelection = (refPoints, tsvCaminoExistence) => {
   const pointsRefCamino = tsvCaminoExistence.pointsReference
   const pointsCaminoNombre = pointsRefCamino.length
   if (pointsCaminoNombre === 0) return refPoints
+
+  if (pointsRefCamino.filter(A => A.length !== 0).length === 0) return refPoints
 
   const refPointsFiltered = refPoints.map(epsgPoints =>
     epsgPoints.filter(epsgPoint => {
@@ -97,7 +161,8 @@ const wgs84PointsSelection = (wgs84Points, tsvCaminoExistence) => {
   const pointsNomCamino = tsvCaminoExistence.pointsWgs84
 
   const wgs84PointsFiltered = wgs84Points.filter(wgs84Point => {
-    wgs84Point.titreEtapeId = tsvCaminoExistence.etape
+    if (tsvCaminoExistence.etape.length !== 0)
+      wgs84Point.titreEtapeId = tsvCaminoExistence.etape
     wgs84Point.id = `${wgs84Point.titreEtapeId}-${wgs84Point.id
       .split('-')
       .slice(-3)
@@ -115,7 +180,7 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
   wgs84Data.coord.reduce((acc, coordXY, j) => {
     if (otherData.length == 0) return acc
 
-    const { groupe, contour, point, jorfId } = otherData[j]
+    const { groupe, contour, point, jorfId, description } = otherData[j]
     const titreEtapeId = wgs84Data.file.slice(0, -4)
     const id = `${titreEtapeId}-g${groupe.padStart(2, '0')}-c${contour.padStart(
       2,
@@ -132,7 +197,8 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       contour,
       point,
       titreEtapeId,
-      nom: jorfId
+      nom: jorfId,
+      description
       //,probleme
     }
     return [...acc, wgs84Point]
@@ -210,15 +276,16 @@ const errorCheck = (fileName, data) => {
   }, [])
 }
 
-const dataDomaineWrite = (data, filesPath, titresCamino, domainesIds) => {
+const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
   const fileNames = Object.keys(data)
   const dataFiles = fileNames.reduce(
     (acc, fileName) => {
       const file = fileName.slice(0, -4)
-      const error = errorCheck(fileName, data)
-      const prio = errorPriorityFind(error)
+      //<!> Problème sur cette partie du code actuellement, qui permet de vérifier si le tsv est conforme ou non
+      // const error = errorCheck(fileName, data)
+      // const prio = errorPriorityFind(error)
       //On choisit la priorité maximale que l'on veut intégrer dans le csv
-      if (prio > 2) return acc
+      //if (prio > 2) return acc
 
       //On regarde si une étape existe pour ce tsv dans Camino
       const refPoints = objectDomaineRefWrite(data[fileName])
@@ -230,7 +297,8 @@ const dataDomaineWrite = (data, filesPath, titresCamino, domainesIds) => {
         refPoints
       )
       acc.logCorrespondance.push(tsvCaminoExistence)
-      if (tsvCaminoExistence.etape.length === 0) return acc
+      // <!> A modifier si l'on ne veut ajouter que des tsv dont l'étape a été trouvé et ne contenant aucun point.
+      //if (tsvCaminoExistence.etape.length === 0) return acc
 
       //Rajouter un check pour savoir si le point existe et si oui si il est identique
       const pointsRefSelect = refPointsSelection(refPoints, tsvCaminoExistence)
@@ -245,14 +313,21 @@ const dataDomaineWrite = (data, filesPath, titresCamino, domainesIds) => {
     },
     { ref: {}, wgs84: {}, logCorrespondance: [] }
   )
+
+  geojsonCsvTsvCreate(resultsPath, dataFiles)
   const pointDomaine = pointDomaineCreate(dataFiles)
   if (Object.keys(pointDomaine).length != 0) {
-    fileDomaineCreate(domainesIds, filesPath, pointDomaine)
+    fileDomaineCreate(domainesIds, resultsPath, pointDomaine)
   }
   return json2csv(dataFiles.logCorrespondance)
 }
 
 const epsgWrite = async (domainesIds, filesPath, titresCamino, dataInitial) =>
-  dataDomaineWrite(dataInitial, filesPath, titresCamino, domainesIds)
+  dataDomaineWrite(
+    dataInitial,
+    path.join(filesPath, 'results'),
+    titresCamino,
+    domainesIds
+  )
 
 module.exports = epsgWrite

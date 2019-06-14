@@ -7,11 +7,10 @@ const epsgWrite = require('./epsg-write')
 
 const run = async () => {
   try {
-    const filesPath = path.join(process.cwd(), 'files_true_data/')
+    const filesPath = path.join(process.cwd(), 'files/')
     const domainesIds = ['m', 'c', 'g', 'h', 'w']
 
     const tsvDatas = await epsgObtain(domainesIds, filesPath)
-
     // On modifie les données
     const epsgContours = require(path.join(filesPath, 'epsg-block.json'))
     //objet à retouner
@@ -24,7 +23,7 @@ const run = async () => {
     //On ecrit
     const titresCamino = require(path.join(
       filesPath,
-      'graphiql_point_etape_demarche.json'
+      'graphiql-point-etape-demarche.json'
     ))
     const logCorrespondance = await epsgWrite(
       domainesIds,
@@ -33,7 +32,7 @@ const run = async () => {
       tsvDatasCleaned
     )
     await fs.writeFile(
-      path.join(filesPath, 'csv-correspondance.csv'),
+      path.join(path.join(filesPath, 'results'), 'csv-correspondance.csv'),
       logCorrespondance
     )
   } catch (e) {
