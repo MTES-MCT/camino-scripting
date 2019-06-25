@@ -10,6 +10,28 @@ const json2csv = require('json2csv').parse
 const titreCorrespondance = require('./titres-correspondance')
 const geojsonFeatureMultiPolygon = require('./geojson')
 
+const geojsonFromDataCreate = data => {
+  const geojsonData = data.reduce((acc, wgs84Point) => {
+    return [
+      ...acc,
+      {
+        titre_etape_id: wgs84Point.titre_etape_id,
+        groupe: wgs84Point.groupe,
+        contour: wgs84Point.contour,
+        point: wgs84Point.point,
+        coordonnees: {
+          x: parseFloat(wgs84Point.coordonnees.split(',')[0]),
+          y: parseFloat(wgs84Point.coordonnees.split(',')[1])
+        },
+        description: wgs84Point.description,
+        nom: wgs84Point.nom,
+        id: wgs84Point.id
+      }
+    ]
+  }, [])
+  return geojsonFeatureMultiPolygon(geojsonData)
+}
+
 const geojsonCsvTsvCreate = (resultsPath, dataFiles) => {
   const filesStore = path.join(resultsPath, 'export')
   if (!fs.existsSync(filesStore)) {
@@ -43,23 +65,42 @@ const geojsonCsvTsvCreate = (resultsPath, dataFiles) => {
       flag: 'w+',
       encoding: 'UTF-8'
     })
-    const geojsonData = wgs84Data.reduce((acc, wgs84Point) => {
-      return [
-        ...acc,
-        {
-          groupe: wgs84Point.groupe,
-          contour: wgs84Point.contour,
-          point: wgs84Point.point,
-          coordonnees: {
-            x: parseFloat(wgs84Point.coordonnees.split(',')[0]),
-            y: parseFloat(wgs84Point.coordonnees.split(',')[1])
-          }
-        }
-      ]
-    }, [])
-    const geojson = geojsonFeatureMultiPolygon(geojsonData)
+
+    const geojson = geojsonFromDataCreate(wgs84Data)
     const pathGeojson = path.join(dataPath, `${titreEtapeId}.geojson`)
     fs.writeFileSync(pathGeojson, JSON.stringify(geojson), {
+      flag: 'w+',
+      encoding: 'UTF-8'
+    })
+  })
+}
+
+const geojsonGlobalCreate = (resultsPath, wgs84DataFiles) => {
+  const wgs84Data = Object.keys(wgs84DataFiles).reduce((acc, key) => {
+    const domaineId = key[0]
+    acc[domaineId] = acc[domaineId] || []
+
+    acc[domaineId] = [
+      ...acc[domaineId],
+      wgs84DataFiles[key].reduce((acc, dataPoint) => [...acc, dataPoint], [])
+    ]
+    return acc
+  }, {})
+
+  Object.keys(wgs84Data).forEach(domaineId => {
+    const geojson = {
+      type: 'FeatureCollection',
+      properties: { domaine: domaineId },
+      features: wgs84Data[domaineId].map(wgs84Polygon =>
+        geojsonFromDataCreate(wgs84Polygon)
+      )
+    }
+
+    const pathDataGeo = path.join(
+      resultsPath,
+      `titres-${domaineId}-geojsons.geojson`
+    )
+    fs.writeFileSync(pathDataGeo, JSON.stringify(geojson), {
       flag: 'w+',
       encoding: 'UTF-8'
     })
@@ -161,8 +202,8 @@ const wgs84PointsSelection = (wgs84Points, tsvCaminoExistence) => {
 
   const wgs84PointsFiltered = wgs84Points.filter(wgs84Point => {
     if (tsvCaminoExistence.etape.length !== 0)
-      wgs84Point.titreEtapeId = tsvCaminoExistence.etape
-    wgs84Point.id = `${wgs84Point.titreEtapeId}-${wgs84Point.id
+      wgs84Point.titre_etape_id = tsvCaminoExistence.etape
+    wgs84Point.id = `${wgs84Point.titre_etape_id}-${wgs84Point.id
       .split('-')
       .slice(-3)
       .join('-')}`
@@ -197,7 +238,7 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       groupe,
       contour,
       point,
-      titreEtapeId,
+      titre_etape_id: titreEtapeId,
       nom: jorfId,
       description,
       probleme
@@ -228,8 +269,8 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }, fileName) => {
       const probleme = correct[j].correction
       const refPoint = {
         id,
-        titrePointId,
-        geoSystemeId,
+        titre_point_id: titrePointId,
+        geo_systeme_id: geoSystemeId,
         coordonnees,
         probleme
       }
@@ -321,6 +362,7 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
   )
 
   geojsonCsvTsvCreate(resultsPath, dataFiles)
+  geojsonGlobalCreate(resultsPath, dataFiles.wgs84)
   const pointDomaine = pointDomaineCreate(dataFiles)
   if (Object.keys(pointDomaine).length != 0) {
     fileDomaineCreate(domainesIds, resultsPath, pointDomaine)

@@ -6,7 +6,11 @@ const rewind = require('geojson-rewind')
 const geojsonFeatureMultiPolygon = points => ({
   type: 'Feature',
   properties: {
-    etapeId: points[0].titreEtapeId
+    etape_id: points[0].titre_etape_id,
+    metas: points.map(point => ({
+      nom: point.nom,
+      description: point.description
+    }))
   },
   geometry: rewind(
     {
