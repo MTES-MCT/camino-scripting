@@ -5,7 +5,7 @@ const { Transform: Json2csvTransform } = require('json2csv')
 
 const objectFileParse = (object, full = false) =>
   new Promise((resolve, reject) => {
-    console.log(object)
+    console.log('parsing:', object)
 
     const file = `onf-${object.toLowerCase()}`
 
@@ -26,7 +26,7 @@ const objectFileParse = (object, full = false) =>
     const output = write(outputPath, { encoding: 'utf8' })
 
     const json2csv = new Json2csvTransform(opts, transformOpts)
-    const processor = input.pipe(json2csv).pipe(output)
+    input.pipe(json2csv).pipe(output)
     output.on('close', () => {
       console.log('csv end', object)
       resolve()
@@ -62,8 +62,10 @@ const objectFileParse = (object, full = false) =>
   })
 
 async function main() {
-  //const objects = ['Demandeur', 'Dossier', 'Polycoordonnee']
   const objects = [
+    'Dossier',
+    'Demandeur',
+    'Polycoordonnee',
     'Cedex',
     'Collaborateur',
     'Commission',
@@ -85,7 +87,6 @@ async function main() {
   const full = true
 
   await objects.reduce((res, object) => {
-    console.log(object)
     return res.then(() => objectFileParse(object, full))
   }, Promise.resolve())
 }
