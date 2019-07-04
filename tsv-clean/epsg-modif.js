@@ -183,6 +183,9 @@ const epsgDifferenceVerif = (fileName, epsgData, correct) => {
   return wgs84Data
 }
 
+const coordFormater = coord =>
+  coord.includes('°') ? decToDms(dmsToDec(coord)) : coord.replace(',', '.')
+
 const logToData = (dataInitial, fileName, tableauLogs) => {
   //tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
   let logs = []
@@ -204,10 +207,10 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
         logs.push(tableau.log)
         datas.correct.push(tableau.correct)
         const coord = {
-          x: parseFloat(tableau.coord.x),
-          y: parseFloat(tableau.coord.y)
+          x: coordFormater(tableau.coord.x),
+          y: coordFormater(tableau.coord.y)
         }
-        datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
+        datas.epsgData[datas.epsgData.length - 1].coord.push({ coord })
       })
       if (tableauLog.priorite) {
         datas['wgs84Data'] = {
@@ -254,10 +257,21 @@ const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }, fonction) => {
   return inverseValue
 }
 
-const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, description) => {
+const choiceDataToAdd = (
+  file,
+  epsg,
+  { x, y },
+  { xDecimal, yDecimal },
+  epsgBound,
+  description
+) => {
   // On ecrit dans les logs
   let tableauLog = {}
-  const inverseValue = inverseCheck({ x, y }, epsgBound, parseFloat)
+  const inverseValue = inverseCheck(
+    { xDecimal, yDecimal },
+    epsgBound,
+    parseFloat
+  )
   switch (inverseValue) {
     case 0:
       tableauLog = dataAdd(file, epsg, pb.PAS_DE_PROBLEME, pb.OK, { x, y })
@@ -271,7 +285,7 @@ const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, description) => {
     case 1.5:
       epsg == '4807'
         ? inverseCheck(
-            { x, y },
+            { xDecimal, yDecimal },
             {
               x1: '-7°12\'23"',
               y1: '41°18\'36"',
@@ -351,12 +365,12 @@ const decToDms = angle => {
     deg < 0 ? deg-- : deg++
     min = min - 60
   }
-  if (deg < 0) {
+  if (deg < 0 && sec !== 0) {
     deg++
     min = 59 - min
     sec = 60 - sec
   }
-  const dms = `${deg}°${min}'${sec}"'`
+  const dms = `${deg}°${min}'${sec}"`
   return dms.replace(/ /g, '')
 }
 
@@ -371,17 +385,18 @@ const coordModif = (
   if (typeof x == 'undefined') x = ''
   if (typeof y == 'undefined') y = ''
 
+  let [xDecimal, yDecimal] = [x, y]
   if (!isEpsgProjectionCorrect) {
-    x = dmsToDec(x)
-    y = dmsToDec(y)
-    if (isNaN(x)) x = ''
-    if (isNaN(y)) y = ''
+    xDecimal = dmsToDec(x)
+    yDecimal = dmsToDec(y)
+    if (isNaN(xDecimal)) xDecimal = ''
+    if (isNaN(yDecimal)) yDecimal = ''
   } else {
-    x = XYChange(x)
-    y = XYChange(y)
+    xDecimal = XYChange(x)
+    yDecimal = XYChange(y)
   }
   //Si il y a une donnee manquante
-  if (x === '' || y === '') {
+  if (xDecimal === '' || yDecimal === '') {
     return description != null && description.length != 0
       ? dataAdd(file, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, { x, y })
       : dataAdd(file, epsg, pb.INCOMPLET, pb.INUTILE, { x, y })
@@ -391,6 +406,7 @@ const coordModif = (
     file,
     epsg,
     { x, y },
+    { xDecimal, yDecimal },
     epsgBound,
     description
   )
