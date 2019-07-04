@@ -1,0 +1,70 @@
+query Titres(
+  $typeIds: [TypeId!]
+  $domaineIds: [DomaineId!]
+  $statutIds: [StatutId!]
+  $substances: [String!]
+  $noms: [String!]
+  $entreprises: [String!]
+  $references: [String!]
+  $territoires: [String!]
+) {
+  titres(
+    typeIds: $typeIds
+    domaineIds: $domaineIds
+    statutIds: $statutIds
+    substances: $substances
+    noms: $noms
+    entreprises: $entreprises
+    references: $references
+    territoires: $territoires
+  ) {
+    ...titre
+  }
+}
+
+fragment titre on Titre {
+  id
+  points {
+    ...point
+  }
+  demarches {
+    ...demarche
+  }
+}
+
+fragment demarche on Demarche {
+  id
+  etapes {
+    ...etape
+  }
+}
+
+fragment etape on Etape {
+  id
+  points {
+    ...point
+  }
+}
+
+fragment point on Point {
+  id
+  coordonnees {
+    x
+    y
+  }
+  references {
+    ...pointReference
+  }
+}
+
+fragment pointReference on PointReference {
+  id
+  geoSysteme {
+    id
+    nom
+  }
+  coordonnees {
+    x
+    y
+  }
+}

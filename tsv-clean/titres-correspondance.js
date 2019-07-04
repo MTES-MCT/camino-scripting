@@ -82,7 +82,7 @@ const titreCorrespondance = (
     validiteWgs84: [],
     pointsReference: []
   }
-  graphQlRequeteTitre.some(titreCamino => {
+  graphQlRequeteTitre.data.titres.some(titreCamino => {
     if (!similarString(titreCamino.id, titreNomTsv)) return false
 
     tsvCaminoExistence.titre = titreCamino.id
