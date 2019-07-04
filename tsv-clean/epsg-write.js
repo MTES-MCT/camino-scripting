@@ -9,6 +9,10 @@ const path = require('path')
 const json2csv = require('json2csv').parse
 const titreCorrespondance = require('./titres-correspondance')
 const geojsonFeatureMultiPolygon = require('./geojson')
+const APPEND_MODE_UTF_8 = {
+  flag: 'w+',
+  encoding: 'UTF-8'
+}
 
 const geojsonFromDataCreate = data => {
   const geojsonData = data.reduce((acc, wgs84Point) => {
@@ -56,22 +60,13 @@ const geojsonCsvTsvCreate = (resultsPath, dataFiles) => {
       dataPath,
       `${titreEtapeId}-points-references.csv`
     )
-    fs.writeFileSync(pathDataRef, csvDomaineRef, {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathDataRef, csvDomaineRef)
     const pathDataWgs84 = path.join(dataPath, `${titreEtapeId}-points.csv`)
-    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, APPEND_MODE_UTF_8)
 
     const geojson = geojsonFromDataCreate(wgs84Data)
     const pathGeojson = path.join(dataPath, `${titreEtapeId}.geojson`)
-    fs.writeFileSync(pathGeojson, JSON.stringify(geojson), {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathGeojson, JSON.stringify(geojson), APPEND_MODE_UTF_8)
   })
 }
 
@@ -100,10 +95,7 @@ const geojsonGlobalCreate = (resultsPath, wgs84DataFiles) => {
       resultsPath,
       `titres-${domaineId}-geojsons.geojson`
     )
-    fs.writeFileSync(pathDataGeo, JSON.stringify(geojson), {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathDataGeo, JSON.stringify(geojson), APPEND_MODE_UTF_8)
   })
 }
 
@@ -118,18 +110,12 @@ const fileDomaineCreate = (domainesIds, resultsPath, pointDomaine) => {
       resultsPath,
       `titres-${domaineId}-points-references.csv`
     )
-    fs.writeFileSync(pathDataRef, csvDomaineRef, {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathDataRef, csvDomaineRef, APPEND_MODE_UTF_8)
     const pathDataWgs84 = path.join(
       resultsPath,
       `titres-${domaineId}-points.csv`
     )
-    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, {
-      flag: 'w+',
-      encoding: 'UTF-8'
-    })
+    fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, APPEND_MODE_UTF_8)
   })
 }
 
@@ -226,9 +212,10 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       2,
       '0'
     )}-p${point.padStart(3, '0')}`
-    const coordonnees = `${coordXY.x}|${coordXY.y}`
-      .replace(',', '.')
-      .replace('|', ',')
+    const coordonnees = `${coordXY.x.replace(',', '.')},${coordXY.y.replace(
+      ',',
+      '.'
+    )}`
     if (coordonnees === 'NaN,NaN' && correct[j].correction === 'inversionEpsg')
       correct[j].correction = 'aCompleter'
     const probleme = correct[j].correction
@@ -251,16 +238,18 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }, fileName) => {
     const geoSystemeId = epsgValue.epsg
     if (!geoSystemeId) return acc
 
-    const refPoints = epsgValue.coord.reduce((acc2, coordXY, j) => {
+    const refPoints = epsgValue.coord.reduce((acc2, coord, j) => {
+      const coordXY = coord.coord
       const { groupe, contour, point } = otherData[j]
       const titrePointId = `${epsgValue.file.slice(0, -4)}-g${groupe.padStart(
         2,
         '0'
       )}-c${contour.padStart(2, '0')}-p${point.padStart(3, '0')}`
       const id = `${titrePointId}-${geoSystemeId}`
-      const coordonnees = `${coordXY.x}|${coordXY.y}`
-        .replace(',', '.')
-        .replace('|', ',')
+      const coordonnees = `${coordXY.x.replace(',', '.')},${coordXY.y.replace(
+        ',',
+        '.'
+      )}`
       if (
         coordonnees === 'NaN,NaN' &&
         correct[j].correction === 'inversionEpsg'
@@ -328,7 +317,6 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
   const dataFiles = fileNames.reduce(
     (acc, fileName) => {
       const file = fileName.slice(0, -4)
-      //<!> Problème sur cette partie du code actuellement, qui permet de vérifier si le tsv est conforme ou non
       const error = errorCheck(fileName, data)
       const prio = errorPriorityFind(error)
       //On choisit la priorité maximale que l'on veut intégrer dans le csv
