@@ -12,11 +12,19 @@ const gdal = require('gdal')
 const moment = require('moment')
 const parserRtf = promisify(require('rtf-parser').string)
 const decamelize = require('decamelize')
+const turf = require('@turf/turf')
 
 const infoTypeOrdre = ['oct-eof', 'oct-aof', 'oct-def', 'pro-def', 'tit']
 
-const info = (type, ...args) =>
-  console.info([infoTypeOrdre.indexOf(type) + 1, ...args].join('\t'))
+const infos = []
+
+const info = (type, obj) => {
+  console.info(
+    [infoTypeOrdre.indexOf(type) + 1, type, ...Object.values(obj)].join('\t')
+  )
+
+  infos.push(obj)
+}
 
 const toCsv = (res, name) => {
   if (!res || !res.length) {
@@ -29,13 +37,13 @@ const toCsv = (res, name) => {
     {}
   )
 
-  const opts = {
-    fields: Object.keys(res[0])
-  }
+  const fields = Object.keys(res.reduce((r, o) => ({ ...r, ...o }), {}))
+
+  const opts = { fields }
 
   try {
     const csv = json2csv(res, opts)
-    write(`exports/camino-onf-${decamelize(name, '-')}.csv`, csv)
+    write(`../exports/camino-onf-windev/${decamelize(name, '_')}.csv`, csv)
   } catch (err) {
     console.error(err)
   }
@@ -62,7 +70,7 @@ const indexify = (arr, key, unique = false) => {
   }, {})
 }
 
-const isRtfEmpty = str => !str || !str.replace(/\s/g, '').trim()
+const isRtfEmpty = str => !str || str.replace(/\s/g, '').trim() === ''
 
 const writeRtf = (path, rtf) => {
   if (rtf.match('pngblip')) {
@@ -95,6 +103,43 @@ const rtfParseContent = async fileContent => {
     throw e
   }
 }
+
+const rtfsAll = []
+
+const rtfsParse = dossier =>
+  Promise.all(
+    ['', 'REV'].reduce(
+      (r, prefix) => [
+        ...r,
+        ...['Notes', 'Motif'].map(async name => {
+          const field = `${prefix}${name}Expertise`
+
+          const content = await rtfParseContent(dossier[field])
+
+          dossier[`${field}Rtf`] = content
+
+          const isEmpty = isRtfEmpty(content)
+
+          dossier[`${field}RtfEmpty`] = isEmpty
+
+          const contentClean =
+            !isEmpty && content.replace(/[a-f0-9]{16,}/gi, '')
+
+          dossier[`${field}RtfClean`] = contentClean
+
+          if (!isEmpty) {
+            rtfsAll.push({
+              onf: dossier.ReferenceONF,
+              field,
+              rtf: contentClean
+            })
+          }
+        })
+      ],
+      []
+    )
+  )
+
 const leftPad = str => str.toString().padStart(2, '0')
 
 const capitalize = str =>
@@ -105,7 +150,9 @@ const capitalize = str =>
         .replace(/(^| )(\w)/g, s => s.toUpperCase())
     : ''
 
-const toWGS = (system, [coord1, coord2]) => {
+const toWgs = (system, [coord1, coord2]) => {
+  //  return [coord1, coord2]
+
   const point = new gdal.Point(coord1, coord2)
   const transformation = new gdal.CoordinateTransformation(
     gdal.SpatialReference.fromEPSG(system),
@@ -114,6 +161,26 @@ const toWGS = (system, [coord1, coord2]) => {
   point.transform(transformation)
 
   return [point.x, point.y]
+}
+
+const rgfg95 = 2972
+const wgs84 = 4326
+
+const polygonCorrect = coordinates => {
+  // Enlever les [] contenant coord si l'on rajoute des polygones au lieu de rajouter des trous]
+
+  const coords = [[...coordinates, coordinates[0]]]
+  const polygon = turf.polygon(coords)
+
+  // On crée l'enveloppe convexe des coordonnées (le rectangle le plus petit contenant tout les points)
+  const convex = turf.convex(polygon)
+
+  // L'enveloppe n'ayant pas exactement les mêmes coordonées que le polygone, on calcule l'aire des 2
+  // L'aire d'un papillon est bien plus petite que l'aire d'un polygone fermé.
+  // On néglige les erreurs d'approximation des coordonnées (approx < 1 mm)
+  const ratio = turf.area(convex) / turf.area(polygon)
+
+  return ratio >= 1.01 ? turf.getCoords(convex)[0] : null
 }
 
 const pointsCreate = (titreEtapeId, points, contourId, groupeId) =>
@@ -137,7 +204,7 @@ const pointsReferencesCreate = points =>
   points.reduce(
     (r, point) => [
       ...r,
-      ...['wgs84', 'utm95'].map(system => {
+      ...['utm95'].map(system => {
         const { coordonnees: coords } = point
 
         const { epsg, coords: coordonnees } = point.source[system]
@@ -155,9 +222,30 @@ const pointsReferencesCreate = points =>
     []
   )
 
+const polygonReorder = (contour, corrected) =>
+  corrected
+    .reduce(
+      (r, coords) => [
+        ...r,
+        contour.find(
+          c => JSON.stringify(c.wgs84.coords) === JSON.stringify(coords)
+        )
+      ],
+      []
+    )
+    // exclude last point
+    .slice(0, -1)
+
 const polygonsToCamino = (polygons, titreEtapeId) =>
   polygons.reduce(
     ({ points: p, pointsReferences: r }, contour, contourIdOrGroupId) => {
+      const coords = contour.map(c => c.wgs84.coords)
+
+      const corrected = polygonCorrect(coords)
+      if (corrected) {
+        contour = polygonReorder(contour, corrected)
+      }
+
       const points = pointsCreate(titreEtapeId, contour, 0, contourIdOrGroupId)
 
       const result = {
@@ -250,7 +338,7 @@ const etapeCreate = etape => ({
   surface: '',
   engagement: '',
   engagementDeviseId: '',
-  data: '',
+  contenu: '',
   ...etape
 })
 
@@ -268,10 +356,56 @@ const documentCreate = doc => ({
   ...doc
 })
 
-const titreArmCreate = (titreIdIndex, dossier) => {
+const ptmgClean = (ptmg, onf) => {
+  if (!ptmg) return ''
+
+  let formatted = ptmg.trim()
+  if (!formatted) return ''
+
+  if (formatted.match(/^(PTMG-\d{4}-\d{3}|YN\d{2}|K\d{5})$/)) return formatted
+
+  formatted = formatted.replace(/[^0-9]+/g, ' ').trim()
+
+  if (formatted.match(/^\d{5}$/)) return `K${formatted}`
+
+  formatted = formatted.match(/^\d{2,3}$/)
+    ? `${onf.slice(2, 6)} ${formatted}`
+    : formatted
+
+  formatted = formatted.match(/^\d{2} \d{2,3}$/)
+    ? `20${formatted.slice(0, 2)} ${formatted.slice(3)}`
+    : formatted
+
+  formatted = formatted.replace(/ /, '')
+  formatted = (formatted.match(/(\d{6,7})$/) || [formatted]).shift()
+
+  const annee = formatted.slice(0, 4)
+  const num = formatted.slice(4)
+
+  formatted = `PTMG-${annee}-${num.padStart(3, 0)}`
+
+  const match = formatted.match(/^(PTMG-2\d{3}-\d{3}|YN\d{2}|K\d{5})$/)
+  if (!match) {
+    // console.warn(`Mauvais format de numéro PTMG : ${formatted} | ${ptmg}`)
+    return ptmg
+  }
+
+  return formatted
+}
+
+const testRegExp = (regExp, str) => str && regExp.test(str)
+
+const mecaRegExp = /(?<!non[ -])m\\'e9canis/
+const manuelleRegExp = /manuelle/
+const pelleRegExp = /pelle/
+
+const incertitudes = []
+
+const titreArmCreate = (titreIdIndex, dossier, { mecanisationsIndice }) => {
   const references = {
     ONF: dossier.ReferenceONF,
-    PTMG: dossier.RefDrire
+    //    ptmg: dossier.RefDrire,
+    PTMG: ptmgClean(dossier.RefDrire, dossier.ReferenceONF)
   }
 
   const domaineId = 'm'
@@ -301,9 +435,41 @@ const titreArmCreate = (titreIdIndex, dossier) => {
     titreIdIndex[titreId] = [titreId]
   }
 
-  const data = {
-    etat: dossier.EtatDossier,
-    avancement: dossier.Avancement
+  const mecanisee =
+    testRegExp(mecaRegExp, dossier.NotesExpertiseRtfClean) ||
+    testRegExp(mecaRegExp, dossier.MotifExpertiseRtfClean) ||
+    testRegExp(mecaRegExp, dossier.REVNotesExpertiseRtfClean) ||
+    testRegExp(mecaRegExp, dossier.REVMotifExpertiseRtfClean)
+
+  const manuelle =
+    testRegExp(manuelleRegExp, dossier.NotesExpertiseRtfClean) ||
+    testRegExp(manuelleRegExp, dossier.MotifExpertiseRtfClean) ||
+    testRegExp(manuelleRegExp, dossier.REVNotesExpertiseRtfClean) ||
+    testRegExp(manuelleRegExp, dossier.REVMotifExpertiseRtfClean)
+
+  const pelle =
+    testRegExp(pelleRegExp, dossier.NotesExpertiseRtfClean) ||
+    testRegExp(pelleRegExp, dossier.MotifExpertiseRtfClean) ||
+    testRegExp(pelleRegExp, dossier.REVNotesExpertiseRtfClean) ||
+    testRegExp(pelleRegExp, dossier.REVMotifExpertiseRtfClean)
+
+  let mecanisation
+  if (references.ONF) {
+    mecanisation = mecanisationsIndice.onf[references.ONF]
+  }
+  if (!mecanisation && references.PTMG) {
+    mecanisation = mecanisationsIndice.ptmg[references.PTMG]
+  }
+
+  const contenu = {
+    onf: {
+      etat: dossier.EtatDossier,
+      avancement: dossier.Avancement,
+      mecanisation: mecanisation && mecanisation.mecanisation === 'true',
+      mecanisee,
+      manuelle,
+      pelle
+    }
   }
 
   const titre = titreCreate({
@@ -313,7 +479,7 @@ const titreArmCreate = (titreIdIndex, dossier) => {
     domaineId,
     statutId: 'ind',
     references,
-    data
+    contenu
   })
 
   return titre
@@ -333,24 +499,36 @@ const octroiCreate = (dossier, titre) => {
   return octroi
 }
 
-const depotCreate = (dossier, octroi) => {
-  if (!dossier.DepotLe) return []
+const depotCreate = (dossier, octroi, titre) => {
+  const contenu = {
+    onf: {
+      mecanisee: titre.contenu.mecanisation
+    }
+  }
 
-  const dateDepot = dateformat(dossier.DepotLe)
+  const date = dateformat(dossier.DepotLe)
+
+  const id = `${octroi.id}-mdp01`
+
+  if (!date) {
+    date = dossier.ReferenceONFAnnee1erJanv
+
+    incertitudes.push({ titreEtapeId: id, date: true })
+  }
 
   const mdp = etapeCreate({
-    id: `${octroi.id}-mdp01`,
+    id,
     typeId: 'mdp',
     titreDemarcheId: octroi.id,
     statutId: 'fai',
     ordre: 1,
     surface: dossier.SurfaceDemandee,
-    date: dateDepot,
-    data: {}
+    date,
+    contenu
   })
 
   if (dossier.NomForet) {
-    mdp.data.nom_foret = capitalize(dossier.NomForet)
+    mdp.contenu.onf.foret = capitalize(dossier.NomForet)
   }
 
   return mdp
@@ -371,69 +549,27 @@ const enregistrementCreate = (dossier, octroi) => {
   return men
 }
 
-const rtfsParse = dossier =>
-  Promise.all(
-    ['', 'REV'].reduce(
-      (r, prefix) => [
-        ...r,
-        ...['Notes', 'Motif'].map(async name => {
-          const field = `${prefix}${name}Expertise`
-
-          dossier[`${field}Rtf`] = await rtfParseContent(dossier[field])
-        })
-      ],
-      []
-    )
-  )
-
 const expertiseCreate = (dossier, octroi, prefix = '') => {
-  if (prefix === 'REV' && dossier.RevisionExpertise === '0') return
+  // si pas de révision d'expertise, alors pas de création d'eof02
+  if (prefix === 'REV' && dossier.RevisionExpertise === '0') return null
 
-  if (
-    !dossier[`${prefix}DebutAnalyseExpertiseLe`] &&
-    !dossier[`${prefix}SaisieAnalyseExpertiseLe`] &&
-    !dossier[`${prefix}NotesExpertise`] &&
-    !dossier[`${prefix}MotifExpertise`]
-  ) {
-    return null
-  }
+  const id = `${octroi.id}-eof${prefix ? '02' : '01'}`
 
   if (
     !dossier[`${prefix}DebutAnalyseExpertiseLe`] &&
     !dossier[`${prefix}SaisieAnalyseExpertiseLe`]
   ) {
-    const notesEmpty = isRtfEmpty(dossier[`${prefix}NotesExpertiseRtf`])
+    const notesEmpty = dossier[`${prefix}NotesExpertiseRtfEmpty`]
     if (!notesEmpty) {
-      info(
-        'oct-eof',
-        dossier.ReferenceONF,
-        octroi.id,
-        `pas de date d'expertise ${prefix || '1'} mais des notes`,
-        dossier[`${prefix}AvisExpertise`]
-      )
-    }
-
-    const motifEmpty = isRtfEmpty(dossier[`${prefix}MotifExpertiseRtf`])
-    if (!motifEmpty) {
-      info(
-        'oct-eof',
-        dossier.ReferenceONF,
-        octroi.id,
-        `pas de date d'expertise ${prefix || '1'} mais un motif`,
-        dossier[`${prefix}AvisExpertise`]
-      )
-    }
-
-    // ni date, ni notes, ni motif, donc pas d'expertise
-    if (notesEmpty && motifEmpty) {
-      info(
-        'oct-eof',
-        dossier.ReferenceONF,
-        octroi.id,
-        `pas de date d'expertise ${prefix || '1'}, ni de notes, ni de motif`,
-        dossier[`${prefix}AvisExpertise`]
-      )
-
+      info('oct-eof', {
+        onf: dossier.ReferenceONF,
+        id,
+        raison: `pas de dates (début et saisie) d'expertise ${prefix ||
+          '1'} mais des notes`,
+        avis: dossier[`${prefix}AvisExpertise`],
+        contenu: dossier[`${prefix}NotesExpertiseRtfClean`]
+      })
+    } else {
       return null
     }
   }
@@ -442,110 +578,125 @@ const expertiseCreate = (dossier, octroi, prefix = '') => {
 
   const dateSaisie = dateformat(dossier[`${prefix}SaisieAnalyseExpertiseLe`])
 
+  let date = dateDebut || dateSaisie
+
+  if (!date) {
+    date = dossier.ReferenceONFAnnee1erJanv
+
+    incertitudes.push({ titreEtapeId: id, date: true })
+  }
+
   const eof = etapeCreate({
-    id: `${octroi.id}-eof${prefix ? '02' : '01'}`,
+    id,
     typeId: 'eof',
     titreDemarcheId: octroi.id,
     statutId: dateSaisie ? 'fai' : 'nfa',
     ordre: 1,
-    date: dateDebut || dateSaisie,
+    date,
     dateFin: dateSaisie || '',
-    data: {}
+    contenu: { onf: {} }
   })
 
   if (dossier[`${prefix}OperateurUsExpertise`]) {
-    eof.data.operateur_expertise = capitalize(
+    eof.contenu.onf.expert = capitalize(
       dossier[`${prefix}OperateurUsExpertise`]
     )
   }
 
   if (dossier[`${prefix}ExpertiseSuiviePar`]) {
-    eof.data.agent_implique = capitalize(dossier[`${prefix}ExpertiseSuiviePar`])
+    eof.contenu.onf.agent = capitalize(dossier[`${prefix}ExpertiseSuiviePar`])
   }
 
   return eof
 }
 
-const expertiseDocumentsCreate = (dossier, eof, prefix = '') => {
-  let notes
+const expertiseDocumentCreate = (dossier, eof, prefix = '') => {
+  if (dossier[`${prefix}NotesExpertiseRtfEmpty`]) return null
 
-  if (!isRtfEmpty(dossier[`${prefix}NotesExpertiseRtf`])) {
-    notes = documentCreate({
-      titreEtapeId: eof.id,
-      fichier: `${eof.id}-notes`,
-      type: 'Notes'
-    })
+  let notes = documentCreate({
+    titreEtapeId: eof.id,
+    fichier: `${eof.id}-notes`,
+    type: 'Notes',
+    nom: 'Notes'
+  })
 
-    writeRtf(
-      `./exports/onf-rtf/${eof.id}-notes.rtf`,
-      dossier[`${prefix}NotesExpertise`]
-    )
-  }
+  writeRtf(
+    `../exports/onf-rtf/${eof.id}-notes.rtf`,
+    dossier[`${prefix}NotesExpertise`]
+  )
 
-  let motif
-  if (!isRtfEmpty(dossier[`${prefix}MotifExpertiseRtf`])) {
-    motif = documentCreate({
-      titreEtapeId: eof.id,
-      fichier: `${eof.id}-motif`,
-      type: 'Motif'
-    })
-
-    writeRtf(
-      `./exports/onf-rtf/${eof.id}-motif.rtf`,
-      dossier[`${prefix}MotifExpertise`]
-    )
-  }
-
-  return [notes, motif]
+  return notes
 }
 
 const avisExpertises = {
-  '-1': 'ind',
+  '-1': 'nfa',
   1: 'fav',
   2: 'def',
   3: 'ajo'
 }
 
 const avisCreate = (dossier, octroi, prefix = '') => {
-  // si révision et pas d'avis d'expertise, alors pas de création d'aof
-  if (dossier[`${prefix}AvisExpertise`] === '-1') return null
+  const id = `${octroi.id}-aof0${prefix ? 2 : 1}`
 
+  if (
+    dossier[`${prefix}AvisExpertise`] === '-1' &&
+    !dossier[`${prefix}AvisExpertiseOnfLe`]
+  ) {
+    const motifEmpty = dossier[`${prefix}MotifExpertiseRtfEmpty`]
+    if (!motifEmpty) {
+      info('oct-aof', {
+        onf: dossier.ReferenceONF,
+        id,
+        raison: `pas de date d'avis d'expertise ${prefix || '1'} mais un motif`,
+        avis: dossier[`${prefix}AvisExpertise`],
+        contenu: dossier[`${prefix}MotifExpertiseRtfClean`]
+      })
+    } else {
+      return null
+    }
+  }
+
+  // si révision et pas d'avis d'expertise, alors pas de création d'aof
   if (!avisExpertises[dossier[`${prefix}AvisExpertise`]]) {
-    info(
-      'oct-aof',
-      dossier.ReferenceONF,
-      octroi.id,
-      `avis expertise ${prefix || '1'} inconnu`,
-      dossier[`${prefix}AvisExpertise`]
-    )
+    info('oct-aof', {
+      onf: dossier.ReferenceONF,
+      id,
+      raison: `avis expertise ${prefix || '1'} inconnu`,
+      avis: dossier[`${prefix}AvisExpertise`]
+    })
     // return null
   }
 
   if (!dossier[`${prefix}AvisExpertiseOnfLe`]) {
-    info(
-      'oct-aof',
-      dossier.ReferenceONF,
-      octroi.id,
-      `avis expertise ${prefix || '1'} sans date`,
-      dossier[`${prefix}AvisExpertise`]
-    )
+    info('oct-aof', {
+      onf: dossier.ReferenceONF,
+      id,
+      raison: `avis expertise ${prefix || '1'} sans date`,
+      avis: dossier[`${prefix}AvisExpertise`]
+    })
     // return null
   }
 
-  const date = dateformat(dossier[`${prefix}AvisExpertiseOnfLe`])
+  let date = dateformat(dossier[`${prefix}AvisExpertiseOnfLe`])
+
+  if (!date) {
+    date = dossier.ReferenceONFAnnee1erJanv
+
+    incertitudes.push({ titreEtapeId: id, date: true })
+  }
 
   const aof = etapeCreate({
-    id: `${octroi.id}-aof0${prefix ? 2 : 1}`,
+    id,
     typeId: 'aof',
     titreDemarcheId: octroi.id,
     statutId: avisExpertises[dossier[`${prefix}AvisExpertise`]],
     ordre: 1,
     date,
-    data: {}
+    contenu: {}
   })
 
   if (dossier[`${prefix}AvisExpertisePar`]) {
-    aof.data.operateur_signature_expertise = capitalize(
+    aof.contenu.onf.signataire = capitalize(
       dossier[`${prefix}AvisExpertisePar`]
     )
   }
@@ -553,170 +704,196 @@ const avisCreate = (dossier, octroi, prefix = '') => {
   return aof
 }
 
-const mecaRegExp = /(?<!non[ -])m\\'e9canis/
-const manuelleRegExp = /manuelle/
-const pelleRegExp = /pelle/
+const avisDocumentCreate = (dossier, aof, prefix = '') => {
+  if (dossier[`${prefix}MotifExpertiseRtfEmpty`]) return null
 
-const testRegExp = (regExp, str) => str && regExp.test(str)
+  let motif = documentCreate({
+    titreEtapeId: aof.id,
+    fichier: `${aof.id}-motif`,
+    type: 'Motif',
+    nom: 'Motif'
+  })
 
-const octroiDefCreate = (dossier, octroi) => {
+  writeRtf(
+    `../exports/onf-rtf/${aof.id}-motif.rtf`,
+    dossier[`${prefix}MotifExpertise`]
+  )
+
+  return motif
+}
+
+const octroiDefStatutDateGet = (dossier, id, octroi, titre) => {
+  // si la convention est signée, l'ARM est forcément valide
+  // peu import la mécanisation
+  if (dossier.ConventionSigneeLe) {
+    return { statutId: 'acc', date: dossier.ConventionSigneeLe }
+  }
+
+  let statutId, date
+
+  const avisExpertiseFavorable =
+    dossier.AvisExpertise === '1' || dossier.REVAvisExpertise === '1'
+  const mecanisee =
+    titre.contenu.onf.mecanisee || titre.contenu.onf.mecanisation
+
+  if (!mecanisee) {
+    if (avisExpertiseFavorable) {
+      // sans signature de convention
+      // le statut de l'octroi d'une ARM non mécaniséeest "acceptée"
+      // si l'avis d'expertise est favorable
+      statutId = 'acc'
+    } else if (
+      dossier.AvisExpertise === '3' ||
+      dossier.REVAvisExpertise === '3'
+    ) {
+      statutId = 'ajo'
+    } else if (
+      dossier.AvisExpertise === '2' ||
+      dossier.REVAvisExpertise === '2'
+    ) {
+      statutId = 'rej'
+    }
+
+    // la date de l'octroi est la date de la commission des ARM
+    date = dossier.AvisExpertiseOnfLe
+
+    return { statutId, date }
+  }
+
+  // ARM mécanisée sans signature de convention
+  if (avisExpertiseFavorable) {
+    // TODO: déterminer le bon statut
+    statutId = 'fav'
+  } else if (
+    dossier.AvisExpertise === '3' ||
+    dossier.REVAvisExpertise === '3'
+  ) {
+    statutId = 'ajo'
+  } else if (
+    dossier.AvisExpertise === '2' ||
+    dossier.REVAvisExpertise === '2'
+  ) {
+    statutId = 'rej'
+  }
+
+  // TODO: si date commission > 1 mois, alors classer sans suite
+  // TODO: vérifier aussi le statut
+  date = dossier.AvisExpertiseOnfLe
+
+  info('oct-def', {
+    onf: dossier.ReferenceONF,
+    id,
+    raison: 'pas de convention signée pour ARM mécanisée'
+  })
+
+  return { statutId, date }
+}
+
+const octroiDefCreate = (dossier, octroi, titre) => {
+  const id = `${octroi.id}-def01`
+
   // aucun avis d'expertise ou de révision d'avis, pas de def possible
   if (dossier.AvisExpertise === '-1' && dossier.REVAvisExpertise === '-1') {
+    if (dossier.ConventionSigneeLe) {
+      info('oct-def', {
+        onf: dossier.ReferenceONF,
+        id,
+        raison: 'convention signée sans avis',
+        convention: dossier.ConventionSigneeLe
+      })
+    }
+
     return null
   }
 
-  const mecanisee =
-    testRegExp(mecaRegExp, dossier.NotesExpertise) ||
-    testRegExp(mecaRegExp, dossier.MotifExpertise) ||
-    testRegExp(mecaRegExp, dossier.REVNotesExpertise) ||
-    testRegExp(mecaRegExp, dossier.REVMotifExpertise)
-
-  const manuelle =
-    testRegExp(manuelleRegExp, dossier.NotesExpertise) ||
-    testRegExp(manuelleRegExp, dossier.MotifExpertise) ||
-    testRegExp(manuelleRegExp, dossier.REVNotesExpertise) ||
-    testRegExp(manuelleRegExp, dossier.REVMotifExpertise)
-
-  const pelle =
-    testRegExp(pelleRegExp, dossier.NotesExpertise) ||
-    testRegExp(pelleRegExp, dossier.MotifExpertise) ||
-    testRegExp(pelleRegExp, dossier.REVNotesExpertise) ||
-    testRegExp(pelleRegExp, dossier.REVMotifExpertise)
-
-  const data = {
-    mecanisee,
-    manuelle,
-    pelle,
-    convention: !!dossier.ConventionSigneeLe
-  }
-
-  if (dossier.ConventionSigneePar) {
-    data.convention_signee_par = capitalize(dossier.ConventionSigneePar)
-  }
-
-  if (dossier.ConventionValideePar) {
-    data.convention_validee_par = capitalize(dossier.ConventionValideePar)
-  }
-
-  if (dossier.ConventionSuiviePar) {
-    data.agent_implique = capitalize(dossier.ConventionSuiviePar)
-  }
-
-  let statutId
-  let date
-
-  // si la convention est signée, l'ARM est forcément valide
-  if (dossier.ConventionSigneeLe) {
-    statutId = 'acc'
-    date = dossier.ConventionSigneeLe
-  } else {
-    const avisExpertiseFavorable =
-      dossier.AvisExpertise === '1' || dossier.REVAvisExpertise === '1'
-
-    if (!mecanisee) {
-      if (avisExpertiseFavorable) {
-        // le statut de l'octroi d'une ARM non mécanisée sans convention est "acceptée"
-        // si l'avis d'expertise est favorable
-        statutId = 'acc'
-      } else if (
-        dossier.AvisExpertise === '3' ||
-        dossier.REVAvisExpertise === '3'
-      ) {
-        statutId = 'ajo'
-      } else if (
-        dossier.AvisExpertise === '2' ||
-        dossier.REVAvisExpertise === '2'
-      ) {
-        statutId = 'rej'
-      }
-
-      // la date de l'octroi est la date de la commission des ARM
-      date = dossier.AvisExpertiseOnfLe
-      if (!date) {
-        info('oct-def', dossier.ReferenceONF, octroi.id, 'octroi sans date')
-      }
-    } else {
-      // ARM mécanisée sans signature de convention
-      if (avisExpertiseFavorable) {
-        // TODO: déterminer le bon statut
-        statutId = 'fav'
-      } else if (
-        dossier.AvisExpertise === '3' ||
-        dossier.REVAvisExpertise === '3'
-      ) {
-        statutId = 'ajo'
-      } else if (
-        dossier.AvisExpertise === '2' ||
-        dossier.REVAvisExpertise === '2'
-      ) {
-        statutId = 'rej'
-      }
-
-      // TODO: si date commission > 1 mois, alors classer sans suite
-      // TODO: vérifier aussi le statut
-      date = dossier.AvisExpertiseOnfLe
-
-      info(
-        'oct-def',
-        dossier.ReferenceONF,
-        octroi.id,
-        'pas de convention signée pour ARM mécanisée'
-      )
+  const contenu = {
+    onf: {
+      // convention: !!dossier.ConventionSigneeLe
     }
   }
 
+  let { statutId, date } = octroiDefStatutDateGet(dossier, id, octroi, titre)
+
   if (!date) {
-    info('oct-def', dossier.ReferenceONF, octroi.id, 'pas de date de début')
+    date = dossier.ReferenceONFAnnee1erJanv
+
+    incertitudes.push({ titreEtapeId: id, date: true })
+
+    info('oct-def', {
+      onf: dossier.ReferenceONF,
+      id,
+      raison: 'pas de date de début'
+    })
   }
 
-  let dateBackup = date
   date = dateformat(date)
 
   let dateFin
 
-  if (dossier.FinConventionLe) {
-    dateFin = dateformat(dossier.FinConventionLe)
-  } else if (date) {
-    // Si pas de date de fin de convention
-    // alors la date de fin est 4 mois après la date de début
-    dateFin = moment(new Date(date))
-    dateFin.add(4, 'months')
-    dateFin = dateformat(dateFin.toDate().toISOString())
-  } else {
-    info(
-      'oct-def',
-      dossier.ReferenceONF,
-      octroi.id,
-      'pas de date de début, ni de date de fin'
-    )
-  }
-
-  let duree
-  let surface
+  let duree = ''
+  let surface = ''
 
   if (statutId === 'acc') {
     duree = 4
     surface = dossier.SurfacePermisKm2
 
-    if (dossier.SurfacePermisKm2 !== dossier.SurfaceDemandee) {
-      data.surface_demandee = dossier.SurfaceDemandee
-    }
+    // La date de fin est 4 mois après la date de début
+    dateFin = moment(new Date(date))
+    dateFin.add(4, 'months')
+    dateFin = dateformat(dateFin.toDate().toISOString())
   }
 
   const octroiDef = etapeCreate({
-    id: `${octroi.id}-def01`,
+    id,
     typeId: 'def',
     titreDemarcheId: octroi.id,
     statutId,
     ordre: 1,
     date,
-    duree: statutId === 'acc' ? 4 : '',
+    duree,
     dateFin,
     surface,
-    data
+    contenu
   })
 
   return octroiDef
+}
+
+const signatureConventionCreate = (dossier, octroi, titre) => {
+  if (!dossier.ConventionSigneeLe) return null
+
+  const contenu = {
+    onf: {}
+  }
+
+  if (dossier.ConventionSigneePar) {
+    contenu.onf.signataire = capitalize(dossier.ConventionSigneePar)
+  }
+
+  if (dossier.ConventionValideePar) {
+    contenu.onf.validateur = capitalize(dossier.ConventionValideePar)
+  }
+
+  if (dossier.ConventionSuiviePar) {
+    contenu.onf.agent = capitalize(dossier.ConventionSuiviePar)
+  }
+
+  const date = dateformat(dossier.ConventionSigneeLe)
+
+  const id = `${octroi.id}-sco01`
+
+  const sco = etapeCreate({
+    id,
+    typeId: 'sco',
+    titreDemarcheId: octroi.id,
+    statutId: 'fai',
+    ordre: 1,
+    surface: dossier.SurfaceDemandee,
+    date,
+    contenu
+  })
+
+  return sco
 }
 
 const prorogationCreate = (dossier, titre) => {
@@ -737,32 +914,28 @@ const prorogationCreate = (dossier, titre) => {
 
 const prorogationDefCreate = (dossier, prorogation, octroiDef) => {
   if (!octroiDef) {
-    info(
-      'pro-def',
-      dossier.ReferenceONF,
-      prorogation.id,
-      "prorogation sans DEF d'octroi:"
-    )
+    info('pro-def', {
+      onf: dossier.ReferenceONF,
+      id: prorogation.id,
+      raison: "prorogation sans DEF d'octroi:"
+    })
     return null
   }
 
-  let date = ''
+  let date = octroiDef.dateFin
 
-  if (dossier.ConventionSigneeLe) {
-    date = moment(octroiDef.date)
-    date.add(4, 'months')
-    date = dateformat(date.toDate().toISOString())
-  }
-
-  const dateFin = dateformat(dossier.FinConventionLe)
+  let dateFin = dateformat(dossier.FinConventionLe)
 
   if (!dateFin) {
-    info(
-      'pro-def',
-      dossier.ReferenceONF,
-      octroiDef.id,
-      'prolongation mais pas de date de fin'
-    )
+    info('pro-def', {
+      onf: dossier.ReferenceONF,
+      id: octroiDef.id,
+      raison: 'prorogation mais pas de date de fin'
+    })
+
+    dateFin = moment(new Date(date))
+    dateFin.add(4, 'months')
+    dateFin = dateformat(dateFin.toDate().toISOString())
   }
 
   const prorogationDef = etapeCreate({
@@ -841,17 +1014,30 @@ const pointsEtapesCreate = (
 
   return etapesWithInfos.reduce(
     (r, etape) => {
-      const polygons = toPolygons(coords, c => ({
+      const polygons = toPolygons(coords, c => {
+        const coordsSource = [+c.W_Utm95, +c.N_Utm95]
+
+        // ignore les coordonnées en wgs84
+        // la conversion BD Minier n'est pas aussi bonne que celle de gdal
+        /*
         wgs84: {
           coords: [+c.W_DD, +c.N_DD],
           epsg: 4326
         },
-        utm95: {
-          coords: [+c.W_Utm95, +c.N_Utm95],
-          epsg: 2972
-        },
-        description: c.Correspondance
-      }))
+         */
+
+        return {
+          utm95: {
+            coords: coordsSource,
+            epsg: rgfg95
+          },
+          wgs84: {
+            coords: toWgs(rgfg95, coordsSource),
+            epsg: wgs84
+          },
+          description: c.Correspondance
+        }
+      })
 
       const { points, pointsReferences } = polygonsToCamino(polygons, etape.id)
 
@@ -868,7 +1054,7 @@ const csvRead = file =>
   new Promise((resolve, reject) => {
     let dossiers = []
 
-    const streamFile = createReadStream(`./exports/${file}`)
+    const streamFile = createReadStream(`../exports/${file}`)
     const streamCsv = csv({ objectMode: true })
 
     streamFile.pipe(streamCsv)
@@ -889,11 +1075,13 @@ const csvRead = file =>
 
 const main = async () => {
   try {
-    const file = 'onf-dossiers.csv'
+    //const file = 'onf-dossiers.csv'
+    // corrections manuelles
+    const file = 'onf-dossiers-corrected.csv'
     // const file = 'onf-dossiers-light.csv'
     // const file = 'AR2018024.csv'
 
-    let dossiers = await csv().fromFile(`./exports/${file}`)
+    let dossiers = await csv().fromFile(`../exports/${file}`)
 
     // let dossiers = await csvRead(file)
 
@@ -903,22 +1091,30 @@ const main = async () => {
 
     const dossiersIndex = indexify(dossiers, 'IDDossier', true)
 
-    const demandeurs = await csv().fromFile('./exports/onf-demandeurs.csv')
-    const demandeursConsolidation = await csv().fromFile(
-      './sources/csv/onf-entreprises-consolidation.csv'
+    const mecanisations = await csv().fromFile(
+      '../sources/csv/ptmg-2012-2019-consolidation.csv'
+    )
+    const mecanisationsIndice = {
+      ptmg: indexify(mecanisations, 'numero_ptmg', true),
+      onf: indexify(mecanisations, 'numero_onf', true)
+    }
+
+    const demandeurs = await csv().fromFile('../exports/onf-demandeurs.csv')
+    const demandeurdefnsolidation = await csv().fromFile(
+      '../sources/csv/onf-entreprises-consolidation.csv'
     )
     const demandeursIndex = indexify(
-      demandeursConsolidation,
+      demandeurdefnsolidation,
       e => capitalize(e.nom),
       true
     )
 
-    const polygones = await csv().fromFile('./exports/onf-polygones.csv')
+    const polygones = await csv().fromFile('../exports/onf-polygones.csv')
     const polygonesIndex = indexify(polygones, 'IDPolygone', true)
     const polygonesIndexDossiers = indexify(polygones, 'IDDossier', true)
 
     const polycoordonnees = await csv().fromFile(
-      './exports/onf-polycoordonnees-light.csv'
+      '../exports/onf-polycoordonnees-light.csv'
     )
 
     const polycoordonneesIndex = indexify(
@@ -974,13 +1170,21 @@ const main = async () => {
 
       const { IDDossier: dossierId } = dossier
 
-      const titre = titreArmCreate(titreIdIndex, dossier)
+      dossier.ReferenceONFAnnee1erJanv = `${dossier.ReferenceONF.slice(
+        2,
+        6
+      )}-01-01`
+
+      await rtfsParse(dossier)
+
+      const titre = titreArmCreate(titreIdIndex, dossier, {
+        mecanisationsIndice
+      })
 
       const demarches = []
       const etapes = []
       const substances = []
       const documents = []
-      const incertitudes = []
 
       let etapesWithInfos = []
 
@@ -990,7 +1194,7 @@ const main = async () => {
       if (octroi) {
         demarches.push(octroi)
 
-        const mdp = depotCreate(dossier, octroi)
+        const mdp = depotCreate(dossier, octroi, titre)
 
         if (mdp) {
           etapes.push(mdp)
@@ -1004,21 +1208,15 @@ const main = async () => {
           etapes.push(men)
         }
 
-        await rtfsParse(dossier)
-
         const eof = expertiseCreate(dossier, octroi)
 
         if (eof) {
           etapes.push(eof)
 
-          const [notes, motif] = expertiseDocumentsCreate(dossier, eof)
+          const notes = expertiseDocumentCreate(dossier, eof)
 
           if (notes) {
             documents.push(notes)
-          }
-
-          if (motif) {
-            documents.push(motif)
           }
         }
 
@@ -1026,6 +1224,12 @@ const main = async () => {
 
         if (aof) {
           etapes.push(aof)
+
+          const motif = avisDocumentCreate(dossier, aof)
+
+          if (motif) {
+            documents.push(motif)
+          }
         }
 
         const eofRev = expertiseCreate(dossier, octroi, 'REV')
@@ -1033,14 +1237,10 @@ const main = async () => {
         if (eofRev) {
           etapes.push(eofRev)
 
-          const [notes, motif] = expertiseDocumentsCreate(dossier, eof, 'REV')
+          const notes = expertiseDocumentCreate(dossier, eofRev, 'REV')
 
           if (notes) {
             documents.push(notes)
-          }
-
-          if (motif) {
-            documents.push(motif)
           }
         }
 
@@ -1048,13 +1248,25 @@ const main = async () => {
 
         if (aofRev) {
           etapes.push(aofRev)
+
+          const motif = avisDocumentCreate(dossier, aofRev, 'REV')
+
+          if (motif) {
+            documents.push(motif)
+          }
         }
 
-        octroiDef = octroiDefCreate(dossier, octroi)
+        octroiDef = octroiDefCreate(dossier, octroi, titre)
 
         if (octroiDef) {
           etapes.push(octroiDef)
           etapesWithInfos.push(octroiDef)
+        }
+
+        const octroiSco = signatureConventionCreate(dossier, octroi, titre)
+
+        if (octroiSco) {
+          etapes.push(octroiSco)
         }
       }
 
@@ -1122,12 +1334,11 @@ const main = async () => {
       // const entreprise = entreprisesIndex[dossier.NomDemandeur]
       const entreprise = demandeursIndex[capitalize(dossier.NomDemandeur)]
       if (!entreprise) {
-        info(
-          'tit',
-          dossier.ReferenceONF,
-          'entreprise introuvable',
-          dossier.NomDemandeur
-        )
+        info('tit', {
+          onf: dossier.ReferenceONF,
+          raison: 'entreprise introuvable',
+          demandeur: dossier.NomDemandeur
+        })
       } else {
         titulaires = etapes.reduce(
           (titulaires, e) =>
@@ -1156,14 +1367,16 @@ const main = async () => {
         titresTitulaires: titulaires,
         titresSubstances: substances,
         titresDocuments: documents,
-        titresIncertitudes: incertitudes,
         entreprises
       })
 
       return acc
     }, [])
 
-    const tables = [
+    // global
+    res.push({ titresIncertitudes: incertitudes })
+
+    const tablesTitre = [
       'titres',
       'titresDemarches',
       'titresEtapes',
@@ -1172,9 +1385,15 @@ const main = async () => {
       'titresTitulaires',
       'titresSubstances',
       'titresDocuments',
-      'titresIncertitudes',
-      'entreprises'
+      'titresIncertitudes'
     ]
+
+    const tablesRepertoire = ['entreprises']
+
+    // toCsv(rtfsAll, 'rtfs')
+    toCsv(infos, 'infos')
+
+    const tables = [...tablesTitre, ...tablesRepertoire]
 
     tables.forEach(nom => {
       const items = res.reduce((r, e) => [...r, ...(e[nom] || [])], [])
