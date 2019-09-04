@@ -108,7 +108,7 @@ const geojsonGlobalCreate = (resultsPath, wgs84DataFiles) => {
 const fileDomaineCreate = (domainesIds, resultsPath, pointDomaine) => {
   domainesIds.forEach(domaineId => {
     const domaineObjet = pointDomaine[domaineId]
-    if (domaineObjet.ref.length === 0) return
+    if (domaineObjet === undefined || domaineObjet.ref.length === 0) return
 
     const csvDomaineRef = json2csv(domaineObjet.ref)
     const csvDomaineWgs84 = json2csv(domaineObjet.wgs84)

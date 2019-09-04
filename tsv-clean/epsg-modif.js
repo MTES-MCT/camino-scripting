@@ -122,11 +122,11 @@ const logDataSeparate = results =>
     { logsCleaning: [], tsvDatasCleaned: {} }
   )
 
-function deg2rad(deg) {
+const deg2rad = deg => {
   return deg * (Math.PI / 180)
 }
 
-function epsgPointCheck(coord1, coord2) {
+const epsgPointCheck = (coord1, coord2) => {
   var R = 6371 // Radius of the earth in km
   var dLat = deg2rad(coord2.x - coord2.x) // deg2rad below
   var dLon = deg2rad(coord2.y - coord2.y)
@@ -294,7 +294,7 @@ const XYChange = coord =>
 const dmsToDec = angle => {
   //Check si il s'agit d'un angle en decimal ou en degre
   if (angle.indexOf('°') == -1)
-    return parseFloat(angle.replace(/,/g, '.').replace(/ /g, ''))
+    return [parseFloat(angle.replace(/,/g, '.').replace(/ /g, ''))]
 
   let negativite = false
   let lettreDegre = ''
@@ -377,9 +377,11 @@ const coordModif = (
     y = dmsToDec(yRef)[0]
     if (isNaN(x)) x = ''
     if (isNaN(y)) y = ''
+
     xRef = decToDms(...dmsToDec(xRef))
     yRef = decToDms(...dmsToDec(yRef))
-  } else {
+  } 
+  else {
     x = XYChange(xRef)
     y = XYChange(yRef)
     xRef = XYChange(xRef)
