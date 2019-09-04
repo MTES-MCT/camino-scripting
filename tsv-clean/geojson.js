@@ -1,6 +1,6 @@
 //import * as rewind from 'geojson-rewind'
 const rewind = require('geojson-rewind')
-// converti des points
+// convertit des points
 // en un geojson de type 'MultiPolygon'
 
 const geojsonFeatureMultiPolygon = points => ({
@@ -21,13 +21,12 @@ const geojsonFeatureMultiPolygon = points => ({
   )
 })
 
-// converti une liste de points
-// en un tableau 'coordinates' geoJson
+// convertit une liste de points en un tableau 'coordinates' geoJson
 // (le premier et le dernier point d'un contour ont les mêmes coordonnées)
 const geojsonMultiPolygonCoordinates = points =>
   multiPolygonContoursClose(multiPolygonCoordinates(points))
 
-// converti une liste de points
+// convertit une liste de points
 // [{groupe: 1, contour: 1, point: 1, coordonnees: {x: 1.111111, y: 1.111111}}]
 // en un tableau de 'coordinates': [[[[1.11111, 1.111111]]]]
 const multiPolygonCoordinates = points =>
@@ -41,8 +40,7 @@ const multiPolygonCoordinates = points =>
     return res
   }, [])
 
-// duplique le premier point de chaque contour
-// en fin de contour pour fermer le tracé
+// duplique le premier point de chaque contour en fin de contour pour fermer le tracé
 const multiPolygonContoursClose = groupes =>
   groupes.map(contours =>
     contours.reduce((acc, points) => {

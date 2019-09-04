@@ -15,7 +15,7 @@ Des paramètres de sélection des tsv à importer peuvent être modifiés. Actue
 Pour finir, lancer un terminal et exécuter les commandes suivantes
 
 ```bash
-#Importe les modules
+#Installe les modules du projet
 npm i
 
 # Cree un ficier csv pour chaque domaine pouvant etre integre au dossier partagé de Camino

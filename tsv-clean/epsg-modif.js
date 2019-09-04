@@ -4,6 +4,10 @@ Ce fichier prend en entrée les données créés par 'epsg-obtain.js'
 Suite à cela, il modifie la donnée, et crée un log des erreurs
 */
 
+const fs = require('fs')
+const path = require('path')
+const proj4 = require('proj4')
+
 const pb = {
   PAS_DE_PROBLEME: 'pas de probleme',
   A_COMPLETER: 'aCompleter',
@@ -24,9 +28,8 @@ const pb = {
   MISSING_DESC: 'manque de description'
 }
 
-const fs = require('fs')
-const path = require('path')
-const proj4 = require('proj4')
+const LETTRES_DEGRE = ['E', 'N', 'e', 'n', 'W', 'S', 'O', 'w', 's', 'o']
+const LETTRES_DEGRE_NEGATIVE = ['W', 'S', 'O', 'w', 's', 'o']
 
 const proj4EpsgDefine = () => {
   proj4.defs([
@@ -183,9 +186,6 @@ const epsgDifferenceVerif = (fileName, epsgData, correct) => {
   return wgs84Data
 }
 
-const coordFormater = coord =>
-  coord.includes('°') ? decToDms(dmsToDec(coord)) : coord.replace(',', '.')
-
 const logToData = (dataInitial, fileName, tableauLogs) => {
   //tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
   let logs = []
@@ -201,18 +201,21 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
       datas.epsgData.push({
         file: fileName,
         epsg: epsgCoord,
-        coord: []
+        coord: [],
+        coordRef: [],
+        opposable: tableauLog.opposable
       })
       tableauLog.data.map(tableau => {
         logs.push(tableau.log)
         datas.correct.push(tableau.correct)
         const coord = {
-          x: coordFormater(tableau.coord.x),
-          y: coordFormater(tableau.coord.y)
+          x: parseFloat(tableau.coord.x),
+          y: parseFloat(tableau.coord.y)
         }
-        datas.epsgData[datas.epsgData.length - 1].coord.push({ coord })
+        datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
+        datas.epsgData[datas.epsgData.length - 1].coordRef.push(tableau.coordRef)
       })
-      if (tableauLog.priorite) {
+      if (tableauLog.opposable) {
         datas['wgs84Data'] = {
           file: fileName,
           coord: epsgDifferenceVerif(fileName, datas.epsgData, datas.correct)
@@ -228,7 +231,7 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
   return { logs, datas }
 }
 
-const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }, fonction) => {
+const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }) => {
   // A est un entier qui peut retourner 4 valeurs différentes: 0, 0.5, 1, 1.5
   // chacune de ses valeurs a un sens différent.
   //0: la donnée semble correcte, possibilité d'interversion de colonnes
@@ -238,98 +241,76 @@ const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }, fonction) => {
   let inverseValue = 0
   //Ici, on check si le point n'est pas dans les bordures de l'epsg
   if (
-    fonction(x1) >= parseFloat(x) ||
-    fonction(x2) <= parseFloat(x) ||
-    fonction(y1) >= parseFloat(y) ||
-    fonction(y2) <= parseFloat(y)
+    parseFloat(x1) >= parseFloat(x) ||
+    parseFloat(x2) <= parseFloat(x) ||
+    parseFloat(y1) >= parseFloat(y) ||
+    parseFloat(y2) <= parseFloat(y)
   ) {
     inverseValue += 1
   }
   //Ici, on check si le point en YX n'est pas dans les bordures de l'epsg
   if (
-    fonction(x1) >= parseFloat(y) ||
-    fonction(x2) <= parseFloat(y) ||
-    fonction(y1) >= parseFloat(x) ||
-    fonction(y2) <= parseFloat(x)
+    parseFloat(x1) >= parseFloat(y) ||
+    parseFloat(x2) <= parseFloat(y) ||
+    parseFloat(y1) >= parseFloat(x) ||
+    parseFloat(y2) <= parseFloat(x)
   ) {
     inverseValue += 0.5
   }
   return inverseValue
 }
 
-const choiceDataToAdd = (
-  file,
-  epsg,
-  { x, y },
-  { xDecimal, yDecimal },
-  epsgBound,
-  description
-) => {
+const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, {xRef, yRef}) => {
   // On ecrit dans les logs
   let tableauLog = {}
-  const inverseValue = inverseCheck(
-    { xDecimal, yDecimal },
-    epsgBound,
-    parseFloat
-  )
+  const inverseValue = inverseCheck({ x, y }, epsgBound)
+  let probleme, resolution
   switch (inverseValue) {
     case 0:
-      tableauLog = dataAdd(file, epsg, pb.PAS_DE_PROBLEME, pb.OK, { x, y })
+      probleme = pb.PAS_DE_PROBLEME
+      resolution = pb.OK
       break
     case 1:
-      tableauLog = dataAdd(file, epsg, pb.INVERSION_COLONNES, pb.OK, { x, y })
+      probleme = pb.INVERSION_COLONNES
+      resolution = pb.OK
       break
     case 0.5:
-      tableauLog = dataAdd(file, epsg, pb.PAS_DE_PROBLEME, pb.OK, { x, y })
+      probleme = pb.PAS_DE_PROBLEME
+      resolution = pb.OK
       break
     case 1.5:
-      epsg == '4807'
-        ? inverseCheck(
-            { xDecimal, yDecimal },
-            {
-              x1: '-7°12\'23"',
-              y1: '41°18\'36"',
-              x2: '7°17\'36"',
-              y2: '51°24\'0"'
-            },
-            dmsToDec
-          ) == 0.5
-          ? (tableauLog = dataAdd(
-              file,
-              epsg,
-              pb.UNITE_DEGRE_RADIAN,
-              pb.A_VERIFIER,
-              {
-                x,
-                y
-              }
-            ))
-          : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER, {
-              x,
-              y
-            }))
-        : (tableauLog = dataAdd(file, epsg, pb.MAUVAIS_EPSG, pb.A_VERIFIER, {
-            x,
-            y
-          }))
+      probleme = pb.MAUVAIS_EPSG
+      resolution = pb.A_VERIFIER
       break
   }
+  tableauLog = dataAdd(file, epsg, probleme, resolution, { x, y }, {x: xRef, y: yRef})
   return tableauLog
 }
 
-const XYChange = coord => {
-  return coord.replace(/ /g, '').replace(/,/g, '.')
-}
+const XYChange = coord => 
+  coord.replace(/ /g, '').replace(/,/g, '.')
+
 
 const dmsToDec = angle => {
   //Check si il s'agit d'un angle en decimal ou en degre
   if (angle.indexOf('°') == -1)
     return parseFloat(angle.replace(/,/g, '.').replace(/ /g, ''))
 
+  let negativite = false
+  let lettreDegre = ''
+  if (LETTRES_DEGRE.includes(angle.slice(-1))) {
+    lettreDegre = angle.slice(-1)
+  }
+  if (LETTRES_DEGRE.includes(angle.slice(0, 1))) {
+    lettreDegre = angle.slice(0, 1)
+  }
+
   const latSep = angle.split('°')
+  if (latSep[0].slice(0, 1) === '-') {
+    negativite = !negativite
+  }
 
   let deg = parseFloat(latSep[0])
-  const negativite = latSep[0][0] === '-' ? true : false
   let min = parseFloat(latSep[1].split("'")[0])
   //differentes possibilités d'ecrire un angle seconde, donc on les teste
   let sec = parseFloat(
@@ -346,10 +327,10 @@ const dmsToDec = angle => {
   const dec = negativite
     ? deg - min / 60 - sec / 3600
     : deg + min / 60 + sec / 3600
-  return dec
+  return [dec, lettreDegre]
 }
 
-const decToDms = angle => {
+const decToDms = ( angle, lettreDegre = '') => {
   let deg = Math.floor(angle)
   if (isNaN(deg)) return ''
 
@@ -365,50 +346,58 @@ const decToDms = angle => {
     deg < 0 ? deg-- : deg++
     min = min - 60
   }
-  if (deg < 0 && sec !== 0) {
+
+  let minus = ''
+  if (deg < 0) {
+    minus = '-'
     deg++
     min = 59 - min
     sec = 60 - sec
   }
-  const dms = `${deg}°${min}'${sec}"`
-  return dms.replace(/ /g, '')
+
+  const dms = `${minus}${Math.abs(deg)}°${min}'${sec}"`
+  return `${dms.replace(/ /g, '')}${lettreDegre}`
 }
 
 const coordModif = (
-  { x, y },
+  coordRef,
   epsgBound,
   file,
   epsg,
   description,
   isEpsgProjectionCorrect
 ) => {
-  if (typeof x == 'undefined') x = ''
-  if (typeof y == 'undefined') y = ''
+  let x, y
+  let [xRef, yRef] = [coordRef.x, coordRef.y]
+  if (!xRef) xRef = ''
+  if (!yRef) yRef = ''
 
-  let [xDecimal, yDecimal] = [x, y]
   if (!isEpsgProjectionCorrect) {
-    xDecimal = dmsToDec(x)
-    yDecimal = dmsToDec(y)
-    if (isNaN(xDecimal)) xDecimal = ''
-    if (isNaN(yDecimal)) yDecimal = ''
+    x = dmsToDec(xRef)[0]
+    y = dmsToDec(yRef)[0]
+    if (isNaN(x)) x = ''
+    if (isNaN(y)) y = ''
+    xRef = decToDms(...dmsToDec(xRef))
+    yRef = decToDms(...dmsToDec(yRef))
   } else {
-    xDecimal = XYChange(x)
-    yDecimal = XYChange(y)
+    x = XYChange(xRef)
+    y = XYChange(yRef)
+    xRef = XYChange(xRef)
+    yRef = XYChange(yRef)
   }
   //Si il y a une donnee manquante
-  if (xDecimal === '' || yDecimal === '') {
+  if (x === '' || y === '') {
     return description != null && description.length != 0
-      ? dataAdd(file, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, { x, y })
-      : dataAdd(file, epsg, pb.INCOMPLET, pb.INUTILE, { x, y })
+      ? dataAdd(file, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, { x, y }, {x: xRef, y: yRef})
+      : dataAdd(file, epsg, pb.INCOMPLET, pb.INUTILE, { x, y }, {x: xRef, y: yRef})
   }
 
   const tableauLog = choiceDataToAdd(
     file,
     epsg,
     { x, y },
-    { xDecimal, yDecimal },
     epsgBound,
-    description
+    {xRef, yRef}
   )
   return tableauLog
 }
@@ -444,12 +433,12 @@ const XYLatLonCheck = ({ x, y }, isEpsgProjectionCorrect) => {
   return !(200 < lat || 200 < lon || lat < -200 || lon < -200)
 }
 
-const logCreate = (epsgData, descriptionListe, filePath, epsgContours) => {
-  return epsgData.reduce((acc, { epsg, coord }) => {
-    let tableauLog = { priorite: false, data: [] }
+const logCreate = (epsgData, descriptionListe, filePath, epsgContours) =>
+  epsgData.reduce((acc, { epsg, coord }) => {
+    let tableauLog = { opposable: false, data: [] }
     if (epsg.slice(-1) === '*') {
       epsg = epsg.slice(0, -1)
-      tableauLog.priorite = true
+      tableauLog.opposable = true
     }
     const epsgBound = epsgContours[epsg].coord
     const isEpsgProjected = epsgContours[epsg].projected
@@ -471,21 +460,21 @@ const logCreate = (epsgData, descriptionListe, filePath, epsgContours) => {
               epsg,
               isEpsgProjected ? pb.XY_INSTEAD_LATLON : pb.LATLON_INSTEAD_XY,
               pb.INVERSION_EPSG,
+              { x, y },
               { x, y }
             )
           )
     })
     return [...acc, tableauLog]
   }, [])
-}
 
-const dataAdd = (fileName, epsg, probleme, correction, coordonnees) => {
-  return {
+
+const dataAdd = (fileName, epsg, probleme, correction, coord, coordRef) => ({
     log: { fileName, epsg, probleme },
     correct: { probleme, correction },
-    coord: coordonnees
-  }
-}
+    coord,
+    coordRef
+  })
 
 const obtainLogs = (epsgContours, dataInitial, filePath) => {
   const { epsgData, otherData } = dataInitial[filePath]
@@ -495,11 +484,11 @@ const obtainLogs = (epsgContours, dataInitial, filePath) => {
 
   const lignesLength = descriptionListe.length
   if (lignesLength === 0)
-    tableauLog.push([dataAdd(filePath, epsg, pb.NO_DATA, pb.INUTILE, {})])
+    tableauLog.push([dataAdd(filePath, epsg, pb.NO_DATA, pb.INUTILE, {}, {})])
 
   if (lignesLength === 1 || lignesLength === 2) {
     tableauLog.push([
-      dataAdd(filePath, epsg, pb.PAS_DE_CONTOUR, pb.INUTILE, {})
+      dataAdd(filePath, epsg, pb.PAS_DE_CONTOUR, pb.INUTILE, {}, {})
     ])
     return tableauLog
   }
@@ -509,10 +498,10 @@ const obtainLogs = (epsgContours, dataInitial, filePath) => {
   if (epsgData.length == 0) {
     descriptionsLength != 0 && descriptionsLength >= lignesLength - 1
       ? tableauLog.push([
-          dataAdd(filePath, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, {})
+          dataAdd(filePath, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, {}, {})
         ])
       : tableauLog.push([
-          dataAdd(filePath, epsg, pb.MISSING_DESC, pb.INUTILE, {})
+          dataAdd(filePath, epsg, pb.MISSING_DESC, pb.INUTILE, {}, {})
         ])
     return tableauLog
   }
@@ -522,19 +511,16 @@ const obtainLogs = (epsgContours, dataInitial, filePath) => {
 const folderRead = (filesFolderPath, epsgContours, dataInitial, domaineId) => {
   const filePath = path.join(filesFolderPath, domaineId)
   const filesNameList = fs.readdirSync(filePath)
-  return filesNameList.reduce((acc, fileName) => {
-    if (fileName !== '.keep')
-      return [
-        ...acc,
-        logToData(
-          dataInitial,
-          fileName,
-          obtainLogs(epsgContours, dataInitial, fileName)
-        )
-      ]
-
-    return acc
-  }, [])
+  return filesNameList.reduce((acc, fileName) => 
+    fileName !== '.keep' ? [
+      ...acc,
+      logToData(
+        dataInitial,
+        fileName,
+        obtainLogs(epsgContours, dataInitial, fileName)
+      )
+    ] : acc
+  , [])
 }
 
 const epsgModif = async (

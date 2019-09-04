@@ -8,7 +8,7 @@ const epsgWrite = require('./epsg-write')
 const run = async () => {
   try {
     const filesPath = path.join(process.cwd(), 'files/')
-    const domainesIds = ['m', 'c', 'g', 'h', 'w']
+    const domainesIds = ['m', 'w']//, 'c', 'g', 'h', 'w']
 
     const tsvDatas = await epsgObtain(domainesIds, filesPath)
     // On modifie les données
