@@ -327,8 +327,11 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
       const file = fileName.slice(0, -4)
       const error = errorCheck(fileName, data)
       const prio = errorPriorityFind(error)
-      //On choisit la priorité maximale que l'on veut intégrer dans le csv
-      if (prio > 5) return acc
+      // On choisit la priorité maximale que l'on veut intégrer dans le csv
+      // prio > 0 ne conserve que les tsv assurés d'etre correct
+      // prio > 3 enleve les tsv que l'alogithme reconnait comme faux et ne crée pas leur geojson
+      // prio > 5 garde tout
+      if (prio > 3) return acc
 
       //On regarde si une étape existe pour ce tsv dans Camino
       const refPoints = objectDomaineRefWrite(data[fileName])

@@ -96,19 +96,19 @@ const titreCorrespondance = (
         tsvCaminoExistence.etape = etapeCamino.id
         const pointsCamino = etapeCamino.points
         pointsTsv.forEach(pointTsv => {
-          pointNomTsv = pointTsv.id
+          const pointNomTsv = pointTsv.id
             .split('-')
             .slice(-3)
             .join('-')
           pointsCamino.some(pointCamino => {
-            pointNomCamino = pointCamino.id
+            const pointNomCamino = pointCamino.id
               .split('-')
               .slice(-3)
               .join('-')
             if (pointNomCamino !== pointNomTsv) return false
 
             tsvCaminoExistence.pointsWgs84.push(pointCamino.id)
-            tsvCoord = {
+            const tsvCoord = {
               x: pointTsv.coordonnees.split(',')[0],
               y: pointTsv.coordonnees.split(',')[1]
             }
@@ -120,12 +120,12 @@ const titreCorrespondance = (
             pointsReferencesTsv.forEach(pointsEpsgTsv => {
               tsvCaminoExistence.pointsReference.push([])
               pointsEpsgTsv.forEach(pointEpsgTsv => {
-                pointEpsgNomTsv = pointEpsgTsv.id
+                const pointEpsgNomTsv = pointEpsgTsv.id
                   .split('-')
                   .slice(-4)
                   .join('-')
                 pointsReferenceCamino.some(pointReferenceCamino => {
-                  pointReferenceNomCamino = pointReferenceCamino.id
+                  const pointReferenceNomCamino = pointReferenceCamino.id
                     .split('-')
                     .slice(-4)
                     .join('-')
