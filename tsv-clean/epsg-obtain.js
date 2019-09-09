@@ -61,15 +61,23 @@ const dataBuild = async (filesFolderPath, filePath) => {
     epsgData: [],
     otherData: []
   }
-  //le fichier est vide ou contient un header sans donnée
+  // le fichier est vide ou contient un header sans donnée
   if (lines.length < 2) {
     return data
   }
 
+  const header = lines[0].trim().split('\t')
+
   data.epsgData = coordEpsgBuild(data.epsgData, lines)
   data.otherData = lines.slice(1).map(line => {
     const [groupe, contour, point, jorfId, description] = line.split('\t')
-    return { groupe, contour, point, jorfId, description }
+
+    let subsidiaire
+    if (header[header.length - 1] === 'subsidiaire') {
+      subsidiaire = true
+    }
+
+    return { groupe, contour, point, jorfId, description, subsidiaire }
   })
   return data
 }
@@ -77,12 +85,13 @@ const dataBuild = async (filesFolderPath, filePath) => {
 const epsgFolderCreate = async (filesFolderPath, folder) => {
   const files = await fs.readdir(path.join(filesFolderPath, folder))
   return Promise.all(
-    files.reduce((acc, file) => {
-      if (file !== '.keep')
-        return [...acc, dataBuild(filesFolderPath, path.join(folder, file))]
-
-      return acc
-    }, [])
+    files.reduce(
+      (acc, file) =>
+        file !== '.keep'
+          ? [...acc, dataBuild(filesFolderPath, path.join(folder, file))]
+          : acc,
+      []
+    )
   )
 }
 
