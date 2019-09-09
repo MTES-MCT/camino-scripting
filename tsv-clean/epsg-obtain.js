@@ -66,10 +66,18 @@ const dataBuild = async (filesFolderPath, filePath) => {
     return data
   }
 
+  const header = lines[0].trim().split('\t')
+
   data.epsgData = coordEpsgBuild(data.epsgData, lines)
   data.otherData = lines.slice(1).map(line => {
     const [groupe, contour, point, jorfId, description] = line.split('\t')
-    return { groupe, contour, point, jorfId, description }
+
+    let subsidiaire
+    if (header[header.length - 1] === 'subsidiaire') {
+      subsidiaire = true
+    }
+
+    return { groupe, contour, point, jorfId, description, subsidiaire }
   })
   return data
 }

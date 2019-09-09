@@ -219,7 +219,14 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
   wgs84Data.coord.reduce((acc, coordXY, j) => {
     if (otherData.length === 0) return acc
 
-    const { groupe, contour, point, jorfId, description } = otherData[j]
+    const {
+      groupe,
+      contour,
+      point,
+      jorfId,
+      description,
+      subsidiaire
+    } = otherData[j]
     const titreEtapeId = wgs84Data.file.slice(0, -4)
     const id = `${titreEtapeId}-g${groupe.padStart(2, '0')}-c${contour.padStart(
       2,
@@ -239,7 +246,8 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       contour,
       point,
       nom: jorfId,
-      description
+      description,
+      subsidiaire
       // probleme
     }
     return [...acc, wgs84Point]
