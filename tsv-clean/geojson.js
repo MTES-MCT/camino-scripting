@@ -1,4 +1,4 @@
-//import * as rewind from 'geojson-rewind'
+// import * as rewind from 'geojson-rewind'
 const rewind = require('geojson-rewind')
 // convertit des points
 // en un geojson de type 'MultiPolygon'

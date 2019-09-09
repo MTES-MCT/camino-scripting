@@ -68,7 +68,10 @@ const geojsonCsvTsvCreate = (resultsPath, dataFiles) => {
     fs.writeFileSync(pathDataRef, csvDomaineRef, APPEND_UTF8)
 
     const csvDomaineWgs84 = json2csv(wgs84Data)
-    const pathDataWgs84 = path.join(dataPath, `${titreEtapeId}${hasDesc(wgs84Data) ? '-desc' : ''}-points.csv`)
+    const pathDataWgs84 = path.join(
+      dataPath,
+      `${titreEtapeId}${hasDesc(wgs84Data) ? '-desc' : ''}-points.csv`
+    )
     fs.writeFileSync(pathDataWgs84, csvDomaineWgs84, APPEND_UTF8)
 
     const geojson = geojsonFromDataCreate(wgs84Data)
@@ -214,7 +217,7 @@ const wgs84PointsSelection = (wgs84Points, tsvCaminoExistence) => {
 
 const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
   wgs84Data.coord.reduce((acc, coordXY, j) => {
-    if (otherData.length == 0) return acc
+    if (otherData.length === 0) return acc
 
     const { groupe, contour, point, jorfId, description } = otherData[j]
     const titreEtapeId = wgs84Data.file.slice(0, -4)
@@ -242,7 +245,8 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
     return [...acc, wgs84Point]
   }, [])
 
-const objectDomaineRefWrite = ({ epsgData, otherData, correct }) =>  epsgData.reduce((acc, epsgValue) => {
+const objectDomaineRefWrite = ({ epsgData, otherData, correct }) =>
+  epsgData.reduce((acc, epsgValue) => {
     const geoSystemeId = epsgValue.epsg
     if (!geoSystemeId) return acc
 
@@ -259,7 +263,8 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) =>  epsgData.re
       if (
         coordonnees === 'NaN,NaN' &&
         correct[j].correction === 'inversionEpsg'
-      ) correct[j].correction = 'aCompleter'
+      )
+        correct[j].correction = 'aCompleter'
 
       // const probleme = correct[j].correction
       const opposable = epsgValue.opposable
@@ -276,9 +281,8 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) =>  epsgData.re
     return [...acc, refPoints]
   }, [])
 
-
 const errorPriorityFind = errorArr => {
-  //Si pas d'élément, on retourne le plus haut niveau de priorité
+  // Si pas d'élément, on retourne le plus haut niveau de priorité
   if (errorArr[0] === undefined) return 5
 
   const priorityError = {
@@ -302,14 +306,14 @@ const errorPriorityFind = errorArr => {
 
 const errorCheck = (fileName, data) => {
   const { epsgData, correct } = data[fileName]
-  if (epsgData.length == 0) {
+  if (epsgData.length === 0) {
     return [correct.probleme, correct.correction]
   }
 
   const n = epsgData[0].coord.length
   return correct.reduce((acc, elem, i) => {
     let checkArr = []
-    if (i % n == 0) checkArr = []
+    if (i % n === 0) checkArr = []
 
     const value = elem.correction
     if (!checkArr.includes(value)) {
@@ -333,7 +337,7 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
       // prio > 5 garde tout
       if (prio > 3) return acc
 
-      //On regarde si une étape existe pour ce tsv dans Camino
+      // On regarde si une étape existe pour ce tsv dans Camino
       const refPoints = objectDomaineRefWrite(data[fileName])
       const wgs84Points = objectDomaineWgs84Write(data[fileName])
       const tsvCaminoExistence = titreCorrespondance(
@@ -344,9 +348,9 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
       )
       acc.logCorrespondance.push(tsvCaminoExistence)
       // <!> A modifier si l'on ne veut ajouter que des tsv dont l'étape a été trouvé et ne contenant aucun point.
-      //if (tsvCaminoExistence.etape.length === 0) return acc
+      // if (tsvCaminoExistence.etape.length === 0) return acc
 
-      //Rajouter un check pour savoir si le point existe et si oui si il est identique
+      // Rajouter un check pour savoir si le point existe et si oui si il est identique
       const pointsRefSelect = refPointsSelection(refPoints, tsvCaminoExistence)
       const pointsWgs84Select = wgs84PointsSelection(
         wgs84Points,
@@ -363,7 +367,7 @@ const dataDomaineWrite = (data, resultsPath, titresCamino, domainesIds) => {
   geojsonCsvTsvCreate(resultsPath, dataFiles)
   geojsonGlobalCreate(resultsPath, dataFiles.wgs84)
   const pointDomaine = pointDomaineCreate(dataFiles)
-  if (Object.keys(pointDomaine).length != 0) {
+  if (Object.keys(pointDomaine).length !== 0) {
     fileDomaineCreate(domainesIds, resultsPath, pointDomaine)
   }
   return json2csv(dataFiles.logCorrespondance)

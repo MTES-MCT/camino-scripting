@@ -13,14 +13,14 @@ const run = async () => {
     const tsvDatas = await epsgObtain(domainesIds, filesPath)
     // On modifie les données
     const epsgContours = require(path.join(filesPath, 'epsg-block.json'))
-    //objet à retouner
+    // objet à retouner
     const { tsvDatasCleaned } = await epsgModif(
       domainesIds,
       filesPath,
       epsgContours,
       tsvDatas
     )
-    //On ecrit
+    // On ecrit
     const titresCamino = require(path.join(
       filesPath,
       'graphiql-point-etape-demarche.json'

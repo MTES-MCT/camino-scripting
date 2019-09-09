@@ -29,7 +29,6 @@ const pb = {
 }
 
 const LETTRES_DEGRE = ['E', 'N', 'e', 'n', 'W', 'S', 'O', 'w', 's', 'o']
-const LETTRES_DEGRE_NEGATIVE = ['W', 'S', 'O', 'w', 's', 'o']
 
 const proj4EpsgDefine = () => {
   proj4.defs([
@@ -151,17 +150,17 @@ const gradCoordChange = ({ x, y }) => {
 
 const epsgDifferenceVerif = (fileName, epsgData, correct) => {
   const nbPoints = correct.length / epsgData.length
-  //On parcoure tout les points de chaque epsg en meme temps
+  // On parcoure tout les points de chaque epsg en meme temps
   let wgs84Data = []
   for (let i = 0; i < nbPoints; i++) {
     const wgs84Points = epsgData.reduce((acc, epsgElem) => {
       const [epsg, coord] = [epsgElem.epsg, epsgElem.coord[i]]
-      if (typeof epsg == 'undefined' || isNaN(coord.x) || isNaN(coord.y))
+      if (typeof epsg === 'undefined' || isNaN(coord.x) || isNaN(coord.y))
         return [...acc, { x: '', y: '' }]
 
-      //console.log(fileName, epsg, coord)
+      // console.log(fileName, epsg, coord)
       const wgs84Point =
-        epsg == 4807
+        epsg === 4807
           ? proj4(
               `EPSG:${epsg}`,
               'EPSG:4326',
@@ -170,7 +169,7 @@ const epsgDifferenceVerif = (fileName, epsgData, correct) => {
           : proj4(`EPSG:${epsg}`, 'EPSG:4326', Object.assign({}, coord))
       return [...acc, wgs84Point]
     }, [])
-    //On verifie pour chaque ensemble de points si ils sont cohérents les uns avec les autres, aka distance de moins de 20m
+    // On verifie pour chaque ensemble de points si ils sont cohérents les uns avec les autres, aka distance de moins de 20m
     wgs84Points.forEach(coord1 => {
       wgs84Points.forEach(coord2 => {
         if (
@@ -187,7 +186,7 @@ const epsgDifferenceVerif = (fileName, epsgData, correct) => {
 }
 
 const logToData = (dataInitial, fileName, tableauLogs) => {
-  //tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
+  // tableauLogs = [pour chaque epsg: [[[liste des log à implémenter dans les logs], [liste des corrections à implémenter dans la donnée]], datas à remettre]]
   let logs = []
   let datas = {
     epsgData: [],
@@ -196,7 +195,7 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
   }
   if (tableauLogs[0].data !== undefined)
     tableauLogs.map(tableauLog => {
-      //On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
+      // On va chercher l'epsg du fichier, qui est donné dans les logs du fichier
       const epsgCoord = tableauLog.data[0].log.epsg
       datas.epsgData.push({
         file: fileName,
@@ -213,7 +212,9 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
           y: parseFloat(tableau.coord.y)
         }
         datas.epsgData[datas.epsgData.length - 1].coord.push(coord)
-        datas.epsgData[datas.epsgData.length - 1].coordRef.push(tableau.coordRef)
+        datas.epsgData[datas.epsgData.length - 1].coordRef.push(
+          tableau.coordRef
+        )
       })
       if (tableauLog.opposable) {
         datas['wgs84Data'] = {
@@ -234,12 +235,12 @@ const logToData = (dataInitial, fileName, tableauLogs) => {
 const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }) => {
   // A est un entier qui peut retourner 4 valeurs différentes: 0, 0.5, 1, 1.5
   // chacune de ses valeurs a un sens différent.
-  //0: la donnée semble correcte, possibilité d'interversion de colonnes
-  //0.5: donnée semble correcte
-  //1: inversion colonnes
-  //1.5: mauvais epsg
+  // 0: la donnée semble correcte, possibilité d'interversion de colonnes
+  // 0.5: donnée semble correcte
+  // 1: inversion colonnes
+  // 1.5: mauvais epsg
   let inverseValue = 0
-  //Ici, on check si le point n'est pas dans les bordures de l'epsg
+  // Ici, on check si le point n'est pas dans les bordures de l'epsg
   if (
     parseFloat(x1) >= parseFloat(x) ||
     parseFloat(x2) <= parseFloat(x) ||
@@ -248,7 +249,7 @@ const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }) => {
   ) {
     inverseValue += 1
   }
-  //Ici, on check si le point en YX n'est pas dans les bordures de l'epsg
+  // Ici, on check si le point en YX n'est pas dans les bordures de l'epsg
   if (
     parseFloat(x1) >= parseFloat(y) ||
     parseFloat(x2) <= parseFloat(y) ||
@@ -260,7 +261,7 @@ const inverseCheck = ({ x, y }, { x1, x2, y1, y2 }) => {
   return inverseValue
 }
 
-const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, {xRef, yRef}) => {
+const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, { xRef, yRef }) => {
   // On ecrit dans les logs
   let tableauLog = {}
   const inverseValue = inverseCheck({ x, y }, epsgBound)
@@ -283,17 +284,22 @@ const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, {xRef, yRef}) => {
       resolution = pb.A_VERIFIER
       break
   }
-  tableauLog = dataAdd(file, epsg, probleme, resolution, { x, y }, {x: xRef, y: yRef})
+  tableauLog = dataAdd(
+    file,
+    epsg,
+    probleme,
+    resolution,
+    { x, y },
+    { x: xRef, y: yRef }
+  )
   return tableauLog
 }
 
-const XYChange = coord => 
-  coord.replace(/ /g, '').replace(/,/g, '.')
-
+const XYChange = coord => coord.replace(/ /g, '').replace(/,/g, '.')
 
 const dmsToDec = angle => {
-  //Check si il s'agit d'un angle en decimal ou en degre
-  if (angle.indexOf('°') == -1)
+  // Check si il s'agit d'un angle en decimal ou en degre
+  if (angle.indexOf('°') === -1)
     return [parseFloat(angle.replace(/,/g, '.').replace(/ /g, ''))]
 
   let negativite = false
@@ -312,25 +318,25 @@ const dmsToDec = angle => {
 
   let deg = parseFloat(latSep[0])
   let min = parseFloat(latSep[1].split("'")[0])
-  //differentes possibilités d'ecrire un angle seconde, donc on les teste
+  // differentes possibilités d'ecrire un angle seconde, donc on les teste
   let sec = parseFloat(
     angle
       .split('°')[1]
       .replace(',', "'")
       .split("'")[1]
   )
-  //au cas ou le fichier n'a pas d'angle seconde
+  // au cas ou le fichier n'a pas d'angle seconde
   if (isNaN(sec)) {
     sec = 0
   }
-  //On applique une addition différente en fonction de la positivité de l'angle
+  // On applique une addition différente en fonction de la positivité de l'angle
   const dec = negativite
     ? deg - min / 60 - sec / 3600
     : deg + min / 60 + sec / 3600
   return [dec, lettreDegre]
 }
 
-const decToDms = ( angle, lettreDegre = '') => {
+const decToDms = (angle, lettreDegre = '') => {
   let deg = Math.floor(angle)
   if (isNaN(deg)) return ''
 
@@ -338,7 +344,7 @@ const decToDms = ( angle, lettreDegre = '') => {
   let min = Math.floor(minFloat)
   const secFloat = (minFloat - min) * 60
   let sec = Math.round(secFloat)
-  if (sec == 60) {
+  if (sec === 60) {
     min++
     sec = 0
   }
@@ -380,59 +386,69 @@ const coordModif = (
 
     xRef = decToDms(...dmsToDec(xRef))
     yRef = decToDms(...dmsToDec(yRef))
-  } 
-  else {
+  } else {
     x = XYChange(xRef)
     y = XYChange(yRef)
     xRef = XYChange(xRef)
     yRef = XYChange(yRef)
   }
-  //Si il y a une donnee manquante
+  // Si il y a une donnee manquante
   if (x === '' || y === '') {
-    return description != null && description.length != 0
-      ? dataAdd(file, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, { x, y }, {x: xRef, y: yRef})
-      : dataAdd(file, epsg, pb.INCOMPLET, pb.INUTILE, { x, y }, {x: xRef, y: yRef})
+    return description !== null && description.length !== 0
+      ? dataAdd(
+          file,
+          epsg,
+          pb.NO_DATA_WITH_DESC,
+          pb.A_COMPLETER,
+          { x, y },
+          { x: xRef, y: yRef }
+        )
+      : dataAdd(
+          file,
+          epsg,
+          pb.INCOMPLET,
+          pb.INUTILE,
+          { x, y },
+          { x: xRef, y: yRef }
+        )
   }
 
-  const tableauLog = choiceDataToAdd(
-    file,
-    epsg,
-    { x, y },
-    epsgBound,
-    {xRef, yRef}
-  )
+  const tableauLog = choiceDataToAdd(file, epsg, { x, y }, epsgBound, {
+    xRef,
+    yRef
+  })
   return tableauLog
 }
 
 const XYLatLonCheck = ({ x, y }, isEpsgProjectionCorrect) => {
-  if (typeof x == 'undefined' || typeof y == 'undefined') return true
+  if (typeof x === 'undefined' || typeof y === 'undefined') return true
 
-  //Si le XY suppose est un angle, alors isEpsgProjectionCorrect vaut false. Coord planes, isEpsgProjectionCorrect vaut true
+  // Si le XY suppose est un angle, alors isEpsgProjectionCorrect vaut false. Coord planes, isEpsgProjectionCorrect vaut true
   if (isEpsgProjectionCorrect) {
     const [coordX, coordY] = [parseFloat(x), parseFloat(y)]
-    //On regarde si il manque au moins une des deux valeurs
-    if (isNaN(coordX)) return -180 < coordY && coordY < 180
+    // On regarde si il manque au moins une des deux valeurs
+    if (isNaN(coordX)) return coordY > -180 && coordY < 180
 
-    if (isNaN(coordY)) return -180 < coordX && coordX < 180
+    if (isNaN(coordY)) return coordX > -180 && coordX < 180
 
-    //Les valeurs planes sont suffisament élevés pour qu'une valeur inférieure à 10000 soit fausse
-    return !(-180 < coordX && x < 180 && -180 < coordY && coordY < 180)
+    // Les valeurs planes sont suffisament élevés pour qu'une valeur inférieure à 10000 soit fausse
+    return !(coordX > -180 && x < 180 && coordY > -180 && coordY < 180)
   }
   let [lat, lon] = [0, 0]
-  //Formate les angles pour enlever les espaces si il y en a
-  x.indexOf(' ') == -1
+  // Formate les angles pour enlever les espaces si il y en a
+  x.indexOf(' ') === -1
     ? (lat = parseFloat(x))
     : (lat = parseFloat(x.replace(/ /g, '')))
 
-  y.indexOf(' ') == -1
+  y.indexOf(' ') === -1
     ? (lon = parseFloat(y))
     : (lon = parseFloat(y.replace(/ /g, '')))
 
-  if (isNaN(lat)) return 200 < lon || lon < -200
+  if (isNaN(lat)) return lon > 200 || lon < -200
 
-  if (isNaN(lon)) return 200 < lat || lat < -200
+  if (isNaN(lon)) return lat > 200 || lat < -200
 
-  return !(200 < lat || 200 < lon || lat < -200 || lon < -200)
+  return !(lat > 200 || lon > 200 || lat < -200 || lon < -200)
 }
 
 const logCreate = (epsgData, descriptionListe, filePath, epsgContours) =>
@@ -470,13 +486,12 @@ const logCreate = (epsgData, descriptionListe, filePath, epsgContours) =>
     return [...acc, tableauLog]
   }, [])
 
-
 const dataAdd = (fileName, epsg, probleme, correction, coord, coordRef) => ({
-    log: { fileName, epsg, probleme },
-    correct: { probleme, correction },
-    coord,
-    coordRef
-  })
+  log: { fileName, epsg, probleme },
+  correct: { probleme, correction },
+  coord,
+  coordRef
+})
 
 const obtainLogs = (epsgContours, dataInitial, filePath) => {
   const { epsgData, otherData } = dataInitial[filePath]
@@ -495,10 +510,10 @@ const obtainLogs = (epsgContours, dataInitial, filePath) => {
     return tableauLog
   }
 
-  //Check si la description de tout les points est disponible
+  // Check si la description de tout les points est disponible
   const descriptionsLength = descriptionListe.filter(A => A).length
-  if (epsgData.length == 0) {
-    descriptionsLength != 0 && descriptionsLength >= lignesLength - 1
+  if (epsgData.length === 0) {
+    descriptionsLength !== 0 && descriptionsLength >= lignesLength - 1
       ? tableauLog.push([
           dataAdd(filePath, epsg, pb.NO_DATA_WITH_DESC, pb.A_COMPLETER, {}, {})
         ])
@@ -513,16 +528,20 @@ const obtainLogs = (epsgContours, dataInitial, filePath) => {
 const folderRead = (filesFolderPath, epsgContours, dataInitial, domaineId) => {
   const filePath = path.join(filesFolderPath, domaineId)
   const filesNameList = fs.readdirSync(filePath)
-  return filesNameList.reduce((acc, fileName) => 
-    fileName !== '.keep' ? [
-      ...acc,
-      logToData(
-        dataInitial,
-        fileName,
-        obtainLogs(epsgContours, dataInitial, fileName)
-      )
-    ] : acc
-  , [])
+  return filesNameList.reduce(
+    (acc, fileName) =>
+      fileName !== '.keep'
+        ? [
+            ...acc,
+            logToData(
+              dataInitial,
+              fileName,
+              obtainLogs(epsgContours, dataInitial, fileName)
+            )
+          ]
+        : acc,
+    []
+  )
 }
 
 const epsgModif = async (

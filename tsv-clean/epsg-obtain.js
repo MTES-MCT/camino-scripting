@@ -61,7 +61,7 @@ const dataBuild = async (filesFolderPath, filePath) => {
     epsgData: [],
     otherData: []
   }
-  //le fichier est vide ou contient un header sans donnée
+  // le fichier est vide ou contient un header sans donnée
   if (lines.length < 2) {
     return data
   }
@@ -77,9 +77,13 @@ const dataBuild = async (filesFolderPath, filePath) => {
 const epsgFolderCreate = async (filesFolderPath, folder) => {
   const files = await fs.readdir(path.join(filesFolderPath, folder))
   return Promise.all(
-    files.reduce((acc, file) => 
-      file !== '.keep' ? [...acc, dataBuild(filesFolderPath, path.join(folder, file))] : acc
-    , [])
+    files.reduce(
+      (acc, file) =>
+        file !== '.keep'
+          ? [...acc, dataBuild(filesFolderPath, path.join(folder, file))]
+          : acc,
+      []
+    )
   )
 }
 
