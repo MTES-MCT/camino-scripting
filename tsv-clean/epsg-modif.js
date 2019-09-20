@@ -66,6 +66,11 @@ const proj4EpsgDefine = () => {
     ['EPSG:32622', '+proj=utm +zone=22 +datum=WGS84 +units=m +no_defs'],
     ['EPSG:32621', '+proj=utm +zone=21 +datum=WGS84 +units=m +no_defs'],
     ['EPSG:32620', '+proj=utm +zone=20 +datum=WGS84 +units=m +no_defs'],
+    ['EPSG:2970', '+proj=utm +zone=20 +units=m +no_defs'],
+    [
+      'EPSG:5490',
+      '+proj=utm +zone=20 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+    ],
     [
       'EPSG:3949',
       '+proj=lcc +lat_1=48.25 +lat_2=49.75 +lat_0=49 +lon_0=3 +x_0=1700000 +y_0=8200000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
@@ -284,6 +289,7 @@ const choiceDataToAdd = (file, epsg, { x, y }, epsgBound, { xRef, yRef }) => {
       resolution = pb.A_VERIFIER
       break
   }
+
   tableauLog = dataAdd(
     file,
     epsg,
@@ -336,6 +342,12 @@ const dmsToDec = angle => {
   return [dec, lettreDegre]
 }
 
+const precision = 9
+
+const tenPow = Math.pow(10, precision)
+
+const round = (dec) => Math.round(dec * tenPow) / tenPow
+
 const decToDms = (angle, lettreDegre = '') => {
   let deg = Math.floor(angle)
   if (isNaN(deg)) return ''
@@ -384,8 +396,8 @@ const coordModif = (
     if (isNaN(x)) x = ''
     if (isNaN(y)) y = ''
 
-    xRef = decToDms(...dmsToDec(xRef))
-    yRef = decToDms(...dmsToDec(yRef))
+    xRef = round(...dmsToDec(xRef))
+    yRef = round(...dmsToDec(yRef))
   } else {
     x = XYChange(xRef)
     y = XYChange(yRef)
