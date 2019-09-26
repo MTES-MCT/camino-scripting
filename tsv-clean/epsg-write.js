@@ -231,12 +231,18 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
     const id = `${titreEtapeId}-g${groupe.padStart(2, '0')}-c${contour.padStart(
       2,
       '0'
-    )}-p${point.padStart(3, '0')}`
+    )}-p${point.padStart(4, '0')}`
     const coordonnees = `${coordXY.x}|${coordXY.y}`
       .replace(',', '.')
       .replace('|', ',')
-    if (coordonnees === 'NaN,NaN' && correct[j].correction === 'inversionEpsg')
+
+    if (
+      coordonnees === 'NaN,NaN' &&
+      correct[j].correction === 'inversionEpsg'
+    ) {
       correct[j].correction = 'aCompleter'
+    }
+
     // const probleme = correct[j].correction
     const wgs84Point = {
       id,
@@ -250,6 +256,7 @@ const objectDomaineWgs84Write = ({ wgs84Data, otherData, correct }) =>
       subsidiaire
       // probleme
     }
+
     return [...acc, wgs84Point]
   }, [])
 
@@ -263,7 +270,7 @@ const objectDomaineRefWrite = ({ epsgData, otherData, correct }) =>
       const titrePointId = `${epsgValue.file.slice(0, -4)}-g${groupe.padStart(
         2,
         '0'
-      )}-c${contour.padStart(2, '0')}-p${point.padStart(3, '0')}`
+      )}-c${contour.padStart(2, '0')}-p${point.padStart(4, '0')}`
       const id = `${titrePointId}-${geoSystemeId}`
       const coordonnees = `${coordXY.x}|${coordXY.y}`
         .replace(',', '.')
