@@ -165,7 +165,7 @@ const epsgDifferenceVerif = (fileName, epsgData, correct) => {
 
       // console.log(fileName, epsg, coord)
       const wgs84Point =
-        epsg === 4807
+        epsg === '4807'
           ? proj4(
               `EPSG:${epsg}`,
               'EPSG:4326',
@@ -346,7 +346,7 @@ const precision = 9
 
 const tenPow = Math.pow(10, precision)
 
-const round = (dec) => Math.round(dec * tenPow) / tenPow
+const round = dec => Math.round(dec * tenPow) / tenPow
 
 const decToDms = (angle, lettreDegre = '') => {
   let deg = Math.floor(angle)
