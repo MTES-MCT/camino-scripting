@@ -2,7 +2,7 @@ const csv = require('csvtojson')
 const json2csv = require('json2csv').parse
 
 async function buildActivites() {
-  const titresGda = await csv().fromFile('./sources/csv/gda_titres.csv')
+  const titresGda = await csv().fromFile('../sources/csv/gda_titres.csv')
   const indexGNum = titresGda.reduce(
     (r, t) => (t.num_titre && (r[t.num_titre] = t), r),
     {}
@@ -13,17 +13,17 @@ async function buildActivites() {
   )
 
   const activitesGda = (await csv().fromFile(
-    './sources/csv/gda_activite_2017.csv'
+    '../sources/csv/gda_activite_2017.csv'
   )).filter(a => a.annee.match(/[0-9]{4}/))
 
-  const activitesCamino = require('./sources/json/titres-activites')
+  const activitesCamino = require('../sources/json/titres-activites')
 
   const indexActivitesC = activitesCamino.reduce(
     (r, a) => ((r[a.id] = a), r),
     {}
   )
 
-  const titresCamino = require('./sources/json/titres-m973-titres')
+  const titresCamino = require('../sources/json/titres-m973-titres')
   const indexC = titresCamino.reduce(
     (r, t) => (t.references.DEAL && (r[t.references.DEAL] = t), r),
     {}
@@ -59,12 +59,13 @@ async function buildActivites() {
       }-${a.trimestre.toString().padStart(2, '0')}`
 
       if (res.index[id]) {
-        if (res.index[id].declaration !== '0') {
-          return res
-        } else {
-          const i = res.activites.findIndex(a => a.id === id)
-          res.activites.splice(i, 1)
-        }
+        // les activités dans GDA peuvent être en double pour un même couple titre/période
+        // si l'activité précédente est une déclaration (différent de 0), on ignore celle-ci
+        if (res.index[id].declaration !== '0') return res
+
+        // suppression de l'ancienne activité, basée sur une non-déclaration (= 0)
+        const i = res.activites.findIndex(a => a.id === id)
+        res.activites.splice(i, 1)
       }
 
       let annee = a.annee
@@ -146,8 +147,6 @@ async function buildActivites() {
         date,
         date_saisie: null,
         contenu,
-        // si le titre est un PRX (permis de recherche)
-        // alors le type d'activité est GRR (rapport de recherches)
         activite_type_id: activiteTypeId,
         activite_statut_id: a.declaration === '0' ? 'abs' : 'dep',
         frequence_periode_id: a.trimestre,
