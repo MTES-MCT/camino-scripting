@@ -63,7 +63,7 @@ const buildRequests = (files, sheets) =>
       sheetId = sheet.properties.sheetId
       requests.push({ deleteSheet: { sheetId } })
     } else {
-      sheetId = Math.floor(Math.random() * 100)
+      sheetId = Math.floor(Math.random() * 1000)
     }
 
     sheet = {

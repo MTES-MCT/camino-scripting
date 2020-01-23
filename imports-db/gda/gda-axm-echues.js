@@ -75,15 +75,20 @@ async function main() {
     }
   })
 
-  const gdas = result[0].data
+  const titresGdas = result[0].data
 
   const geos = await csv().fromFile('../sources/csv/cartog-aex-full.csv')
 
-  // const lot = await csv().fromFile('../sources/csv/axm-echues-carto-pdf.csv')
-  const lot = await csv().fromFile('../sources/csv/axm-echues-carto-lot-2.csv')
-  // const lot = await csv().fromFile('../sources/csv/axm-echues-no-carto-lot-3-gda.csv')
+  // const filePath = '../sources/csv/axm-echues-carto-pdf.csv'
+  // const filePath = '../sources/csv/axm-echues-carto-lot-2.csv'
+  // const filePath = '../sources/csv/axm-echues-carto-lot-3-nocartog.csv'
+  const filePath = '../sources/csv/axm-echues-carto-lot-2_3.csv'
 
-  const joined = gdas.filter(titre => {
+  let lines = await csv().fromFile(filePath)
+
+  lines = lines.filter(l => l.nomtitre)
+
+  titresGdas.forEach(titre => {
     titre.type = result[1].index[titre.idd_typetr].intitule
     titre.demandeur = result[2].index[titre.idd_demandeurs]
 
@@ -100,8 +105,6 @@ async function main() {
     if (geo) {
       titre.geos = geo
     }
-
-    return true
   })
 
   const entreprisesNoSiren = []
@@ -156,7 +159,7 @@ async function main() {
   const activiteContenuCreate = a => {
     const contenu = {
       renseignements: {
-        orBrut:
+        orExtrait:
           a.production_au &&
           Math.round(a.production_au.replace(/,/g, '') * 100) / 100,
         mercure:
@@ -222,9 +225,9 @@ async function main() {
     return titreActivite
   }
 
-  const titresActivitesCreate = (lot, joined) =>
-    lot.reduce((titresActivites, l) => {
-      const titre = joined.find(t => t.num_titre === l.num_titre)
+  const titresActivitesCreate = (lines, titresGdas) =>
+    lines.reduce((titresActivites, l) => {
+      const titre = titresGdas.find(t => t.num_titre === l.num_titre)
       if (!titre || !titre.activites.length) return titresActivites
 
       const { titreActivites } = titre.activites.reduce(
@@ -262,18 +265,35 @@ async function main() {
   const titresCreate = (lines, typeId) =>
     lines.reduce(
       ({ titresIds, titres }, l) => {
+        let date
+
+        if (l.idtm.match(/\d{4}$/)) {
+          date = l.idtm.slice(-4)
+        } else {
+          const dateKey = Object.keys(l).find(k => k.match('date') && l[k])
+          if (dateKey) {
+            date = l[dateKey].slice(0, 4)
+          } else {
+            const annee = l.num_dossier.slice(1, 3)
+
+            date = `${annee[0] === '9' ? '19' : '20'}${annee}`
+          }
+        }
+
+        l.id = `m-axm-${slugify(l.nomtitre)}-${date}`
+
         // l'id est déjà pris
         if (titresIds[l.id]) {
-          console.error('old:', l.id)
+          const id = l.id
 
           const n = titresIds[l.id] + 1
 
           titresIds[l.id] = n
 
-          l.id = l.id.replace(/-(\d{4})$/, `-${n}-$1`)
+          l.id = `${l.id}-${n}`
           l.nomtitre = `${l.nomtitre} (${n})`
 
-          console.error('new:', l.id)
+          console.error('old:', id, '=> new:', l.id)
         }
 
         l.titre = {
@@ -285,7 +305,7 @@ async function main() {
           references: [
             {
               typeId: 'dea',
-              nom: l.idtm
+              nom: l.idtm || l.num_dossier
             }
           ],
           demarches: []
@@ -317,13 +337,14 @@ async function main() {
       statutId: 'ind',
       ordre,
       annulationTitreDemarcheId: null,
-      etapes: []
+      etapes: [],
+      ...props
     }
 
     return titreDemarche
   }
 
-  const titresDemarchesCreate = (lines, typeId, build = () => true) =>
+  const titresDemarchesCreate = (lines, typeId, build = () => ({})) =>
     lines.reduce((titresDemarches, { titre, ...l }) => {
       const titreDemarche = titreDemarcheCreate(l, titre, typeId, build)
       if (!titreDemarche) return titresDemarches
@@ -335,7 +356,7 @@ async function main() {
       return titresDemarches
     }, [])
 
-  const titreEtapeCreate = (l, demarche, typeId, build = () => true) => {
+  const titreEtapeCreate = (l, demarche, typeId, build = () => ({})) => {
     const ordre = demarche.etapes.length + 1
 
     const ordreTypeId =
@@ -364,7 +385,7 @@ async function main() {
     return titreEtape
   }
 
-  const titresEtapesCreate = (lines, typeId, build = () => true) =>
+  const titresEtapesCreate = (lines, typeId, build = () => ({})) =>
     lines.reduce((titresEtapes, l) => {
       const [demarche] = l.titre.demarches
 
@@ -378,11 +399,11 @@ async function main() {
       return titresEtapes
     }, [])
 
-  const entreprises = entreprisesCreate(lot)
+  const entreprises = entreprisesCreate(lines)
 
-  const titres = titresCreate(lot, 'axm')
+  const titres = titresCreate(lines, 'axm')
 
-  const titresDemarchesOct = titresDemarchesCreate(lot, 'oct')
+  const titresDemarchesOct = titresDemarchesCreate(lines, 'oct')
 
   const titreEtapePropsCreate = (date, l, titreEtapeId) => ({
     date,
@@ -397,24 +418,24 @@ async function main() {
     titulaires: [l.demandeur],
     substances: [{ id: 'auru' }],
     // lot-2 : carto incertaine
-    incertitudes: { points: true }
+    incertitudes: l.coordinates ? { points: true } : null
   })
 
   const titresEtapesMdp = titresEtapesCreate(
-    lot,
+    lines,
     'mdp',
-    ({ date_ar_prefecture: date, ...l }, titreEtapeId) =>
-      date && titreEtapePropsCreate(date, l, titreEtapeId)
+    ({ date_ar_prefecture: date, date_ar_drire: date2, ...l }, titreEtapeId) =>
+      (date || date2) && titreEtapePropsCreate(date || date2, l, titreEtapeId)
   )
 
   const titresEtapesMco = titresEtapesCreate(
-    lot,
+    lines,
     'mco',
     ({ date_demande_plus: date }) => date && { date }
   )
 
   const titresEtapesRco = titresEtapesCreate(
-    lot,
+    lines,
     'rco',
     ({ date_reception_plus: date }) => date && { date }
   )
@@ -430,7 +451,7 @@ async function main() {
   }
 
   const titresEtapesApo = titresEtapesCreate(
-    lot,
+    lines,
     'apo',
     ({ date_commission: date, ...l }) =>
       date && {
@@ -439,33 +460,48 @@ async function main() {
       }
   )
 
-  const titresEtapesRet = titresEtapesCreate(
-    lot,
-    'ret',
-    ({ date_renonciation: date }) => date && { date }
-  )
-
   const titresEtapesDex = titresEtapesCreate(
-    lot,
+    lines,
     'dex',
-    ({ date_octroi: date, date_oct: date2, ...l }, titreEtapeId) =>
+    ({ date_octroi: date, date_oct: date2, rejet, ...l }, titreEtapeId) =>
       (date || date2) && {
         ...titreEtapePropsCreate(date || date2, l, titreEtapeId),
         duree: +l.Durée * 12,
-        statutId: 'acc'
+        statutId: rejet === '1' ? 'rej' : 'acc'
       }
+  )
+
+  const titresEtapesMcr = titresEtapesCreate(
+    lines,
+    'mcr',
+    ({ date_classement: date, classement_ss: classement }) => {
+      if (!date && classement !== '1') return null
+
+      return {
+        date,
+        statutId: 'def'
+      }
+    }
+  )
+
+  const titresEtapesRet = titresEtapesCreate(
+    lines,
+    'ret',
+    ({ date_retrait_demande: date }) => date && { date, statutId: 'fai' }
   )
 
   if (false) {
     const titresDemarchesPro = titresDemarchesCreate(
-      lot,
+      lines,
       'pro',
       l => l.prolongation === '1'
     )
   }
 
-  const titresDemarchesPro = lot.reduce((titresDemarchesPro, l) => {
-    const titre = joined.find(t => t.num_titre === l.num_titre)
+  // `titresDemarchesCreate` n'est pas utilisable
+  // car il faut pouvoir créer plusieurs démarches de prolongation par ligne
+  const titresDemarchesPro = lines.reduce((titresDemarchesPro, l) => {
+    const titre = titresGdas.find(t => t.num_titre === l.num_titre)
     if (!titre || !titre.prolongations.length) return titresDemarchesPro
 
     const titreDemarchesPro = titre.prolongations.map(p => {
@@ -477,10 +513,7 @@ async function main() {
         l,
         titreDemarchePro,
         'mdp',
-        () =>
-          p.date_p && {
-            date: p.date_p
-          }
+        () => p.date_p && { date: p.date_p }
       )
       if (titreEtapeProMdp) titreDemarchePro.etapes.push(titreEtapeProMdp)
 
@@ -512,6 +545,44 @@ async function main() {
     return titresDemarchesPro.concat(titreDemarchesPro)
   }, [])
 
+  const titresDemarchesRen = titresDemarchesCreate(lines, 'ren', (l, id) => {
+    if (!l.date_renonciation) return null
+
+    const titreDemarcheRen = {
+      id,
+      etapes: []
+    }
+
+    const titreEtapeRenDex = titreEtapeCreate(
+      l,
+      titreDemarcheRen,
+      'dex',
+      ({ date_renonciation: date }) => ({ date, statutId: 'acc' })
+    )
+    if (titreEtapeRenDex) titreDemarcheRen.etapes.push(titreEtapeRenDex)
+
+    return titreDemarcheRen
+  })
+
+  const titresDemarchesRet = titresDemarchesCreate(lines, 'ret', (l, id) => {
+    if (!l.date_retrait_sanction) return null
+
+    const titreDemarcheRet = {
+      id,
+      etapes: []
+    }
+
+    const titreEtapeRetDex = titreEtapeCreate(
+      l,
+      titreDemarcheRet,
+      'dex',
+      ({ date_retrait_sanction: date }) => ({ date, statutId: 'acc' })
+    )
+    if (titreEtapeRetDex) titreDemarcheRet.etapes.push(titreEtapeRetDex)
+
+    return titreDemarcheRet
+  })
+
   if (false)
     console.log(
       titres
@@ -519,20 +590,9 @@ async function main() {
         .join('\n')
     )
 
-  const titresActivites = titresActivitesCreate(lot, joined)
-
-  //  console.log(titres.find(t => t.demarches.length > 1).demarches)
+  const titresActivites = titresActivitesCreate(lines, titresGdas)
 
   console.log(JSON.stringify({ titres, entreprises }, null, 2))
-
-  if (false) {
-    try {
-      const csv = json2csv(consol, opts)
-      console.log(csv)
-    } catch (err) {
-      console.error(err)
-    }
-  }
 }
 
 main()

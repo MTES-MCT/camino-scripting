@@ -23,7 +23,7 @@ function formatDate(str) {
 
 async function main() {
   const valid = geos.features
-    .filter(a => a.properties.Statut === 'Valide')
+    //    .filter(a => a.properties.Statut === 'Valide')
     .map(a => ({
       ...a.properties,
       coordinates: JSON.stringify(a.geometry.coordinates)
