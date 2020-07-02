@@ -1,6 +1,7 @@
+const { readFileSync } = require('fs')
 const json2csv = require('json2csv').parse
 
-const geos = require('./sources/json/rntm')
+const geos = JSON.parse(readFileSync('../sources/json/rntm.geojson').toString())
 
 const fields = [
   'idtm',
