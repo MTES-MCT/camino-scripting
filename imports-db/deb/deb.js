@@ -10,6 +10,11 @@ const toLowerCase = s => (s || '').toString().toLowerCase()
 
 const allDocsDeb = []
 const allDocsCamino = []
+const allEventsDeb = []
+const allTitresGeoRntm = []
+const allTitresNoGeoRntm = []
+
+const allAccuses = []
 
 const capitalize = str => str && `${str[0].toUpperCase()}${str.slice(1)}`
 
@@ -83,17 +88,7 @@ const loadSchema = async schema => {
   )
 
   return files.reduce((result, { table, data }) => {
-    //    const { 0: first, length } = data
-
-    //    const cols = Object.keys(first)
-
-    result[table.name] = {
-      table,
-      //      length,
-      //      cols,
-      data
-      //      display: `${table.name} (${length}):\n- ${cols.join('\n- ')}`
-    }
+    result[table.name] = { table, data }
 
     return result
   }, {})
@@ -179,12 +174,12 @@ const etapesCamino = {
   5: 'mco',
   6: 'anf',
   7: 'ane',
-  8: null,
+  8: 'ssr',
   9: null,
-  10: null,
+  10: 'spo',
   11: 'apo',
   12: 'epu',
-  13: 'epu',
+  13: 'epc',
   14: 'edm',
   15: 'apd',
   16: 'apd',
@@ -210,7 +205,7 @@ const etapesCamino = {
   36: null,
   37: 'rco',
   38: null,
-  39: null,
+  39: 'mec',
   40: 'mco',
   41: 'rco'
 }
@@ -292,6 +287,7 @@ const substancesCamino = {
 // les documents de ces types d'étapes sont visibles par les entreprises
 const etapesDocsEntreprisesLecture = [
   'mfr',
+  'men',
   'mdp',
   'des',
   'pfd',
@@ -348,7 +344,7 @@ const documentsCamino = {
   21: null,
   22: 'lcg',
   23: null,
-  24: null,
+  24: 'acg',
   25: 'lce',
   26: 'lce',
   27: null,
@@ -692,49 +688,7 @@ const titreOctroiCalc = l => {
   return date || l.datmo || l.datprefsd
 }
 
-const titreCreateInformation = (l, titre) => {
-  const { rntm } = l
-
-  total += 1
-
-  let dateOctroi = rntm && rntm.properties.Date_octroi
-
-  if (dateOctroi) {
-    // formate la date RNTM DD/MM/AAAA
-    const parts = dateOctroi.split('/')
-
-    dateOctroi = `${parts[2]}-${parts[1]}-${parts[0]}`
-  } else {
-    dateOctroi = l.datmo || l.datprefsd
-  }
-
-  // si pas de date d'octroi
-  // ou date en 2013 (date de mise à jour dans DEB)
-  if (!dateOctroi || dateOctroi.match(/2013/)) {
-    // alors on met une valeur incertaine
-    // à la date de création du droit minier
-    dateOctroi = '1810-04-21'
-  }
-
-  //  if (false)
-  console.error(
-    total,
-    l.nmtit,
-    ', date :',
-    dateOctroi,
-    ', date octroi rntm:',
-    rntm && rntm.properties.Date_octroi
-  )
-
-  const demarche = (({ typeId }) => ({
-    id: `${titre.id}-${typeId}01`,
-    typeId,
-    statutId: 'ind',
-    etapes: []
-  }))({ typeId: 'oct' })
-
-  titre.demarches.push(demarche)
-
+const titreCreateInformationTitulaires = (l, titre, rntm) => {
   const titulaires = (l.titulaires || []).reduce((titulaires, lien) => {
     if (lien.entreprise) {
       titulaires.push({ id: lien.entreprise.id })
@@ -762,6 +716,63 @@ const titreCreateInformation = (l, titre) => {
     })
   }
 
+  return titulaires
+}
+
+const titreCreateInformation = (l, titre) => {
+  const { rntm } = l
+
+  total += 1
+
+  let dateOctroi = rntm && rntm.properties.Date_octroi
+
+  if (dateOctroi) {
+    // formate la date RNTM DD/MM/AAAA en AAAA-MM-AA
+    const parts = dateOctroi.split('/')
+
+    dateOctroi = `${parts[2]}-${parts[1]}-${parts[0]}`
+  } else {
+    dateOctroi = l.datmo || l.datprefsd
+  }
+
+  // si pas de date d'octroi
+  // ou date en 2013 (date de mise à jour dans DEB)
+  if (!dateOctroi || dateOctroi.match(/2013/)) {
+    // alors on met une valeur incertaine
+    // à la date de création du droit minier
+    dateOctroi = '1810-04-21'
+  }
+
+  //  if (false)
+  console.error(
+    total,
+    l.nmtit,
+    ', date :',
+    dateOctroi,
+    ', date octroi rntm:',
+    rntm && rntm.properties.Date_octroi
+  )
+
+  if (rntm) {
+    titre.references.push({
+      typeId: 'rnt',
+      nom: rntm.properties.Code
+    })
+  }
+
+  const demarche = (({ typeId }) => ({
+    id: `${titre.id}-${typeId}01`,
+    typeId,
+    statutId: 'ind',
+    etapes: []
+  }))({ typeId: 'oct' })
+
+  titre.demarches.push(demarche)
+
+  const substances = titreEtapeBuildSubstances(l)
+
+  const titulaires = titreCreateInformationTitulaires(l, titre, rntm)
+
   const etape = (({ typeId }) => {
     const id = `${demarche.id}-${typeId}01`
 
@@ -772,6 +783,7 @@ const titreCreateInformation = (l, titre) => {
       date: dateOctroi,
       ordre: 1,
       titulaires,
+      substances,
       points: rntm
         ? rntm.geometry.coordinates.reduce(
             (res, points, contourId) => [
@@ -893,25 +905,21 @@ const titreCreate = (l, titresIds, build) => {
   const props = build(l, titre)
   if (!props) return null
 
-  // on ne s'intéresse qu'aux titres ayant des démarches avec étapes
-  // if (!titre.demarches.find(d => d.etapes.length)) return null
+  if (!titre.demarches.length) {
+    // on consolide les titres sans démarche/affaire
+    // avec RNTM, s'il y a un lien
+    if (l.rntmConsol && l.rntmConsol.find(c => c.sans_demarches === c.ref)) {
+      titre = titreCreateInformation(l, titre)
 
-  // on consolide les titres sans démarche/affaire
-  // avec RNTM, s'il y a un lien
-  if (
-    !titre.demarches.length &&
-    l.rntmConsol &&
-    l.rntmConsol.find(c => c.sans_demarches === c.ref)
-  ) {
-    titre = titreCreateInformation(l, titre)
+      if (!titre) return null
 
-    if (!titre) return null
+      allTitresGeoRntm.push(titre)
+    } else {
+      allTitresNoGeoRntm.push(titre)
+    }
   }
 
-  return {
-    ...titre,
-    ...props
-  }
+  return { ...titre, ...props }
 }
 
 const titresCreate = (titres, build = () => ({})) =>
@@ -940,23 +948,28 @@ const titreDocumentCreate = (event, titreEtape, documentDeb) => {
 
   if (documentDeb.import !== 'TRUE') return null
 
-  const date = documentDeb.datdep
+  // on prend la date de l'étape (événement)
+  const date = titreEtape.date
 
   const hash = cryptoRandomString({ length: 8 })
 
   const documentId = `${date}-${typeId}-${hash}`
+
+  const url = decodeEntities(documentDeb.url).replace(
+    'http://www.deb.developpement-durable.gouv.fr/titreminier/documents/',
+    'http://www.deb.developpement-durable.gouv.fr/titreminier/upload.php?file=documents/'
+  )
+
+  const fileName = documentDeb.rurl.match('file=documents/')
+    ? documentDeb.rurl.split('file=documents/')[1]
+    : null
 
   const document = {
     id: documentId,
     titreEtapeId: titreEtape.id,
     typeId,
     date,
-    url: encodeURI(
-      decodeEntities(documentDeb.url).replace(
-        'http://www.deb.developpement-durable.gouv.fr/titreminier/documents/',
-        'http://www.deb.developpement-durable.gouv.fr/titreminier/upload.php?file=documents/'
-      )
-    ),
+    //    url: encodeURI(url),
     description: documentDeb.tdoc
       ? capitalize(decodeEntities(documentDeb.tdoc))
       : null,
@@ -964,7 +977,7 @@ const titreDocumentCreate = (event, titreEtape, documentDeb) => {
     fichierTypeId: documentDeb.nfic ? documentDeb.exten : null,
     publicLecture: false,
     entreprisesLecture: etapesDocsEntreprisesLecture[titreEtape.typeId],
-    fileName: documentDeb.nfic ? documentDeb.nfic : null
+    fileName: fileName || (documentDeb.nfic ? documentDeb.nfic : null)
   }
 
   documentDeb.idCamino = documentId
@@ -972,12 +985,63 @@ const titreDocumentCreate = (event, titreEtape, documentDeb) => {
   return document
 }
 
+const isFondamentale = typeId =>
+  [
+    'mfr',
+    'mod',
+    'rco',
+    'anf',
+    'ane',
+    'dim',
+    'dex',
+    'dux',
+    'dpu',
+    'dup'
+  ].includes(typeId)
+
+const isDecision = typeId => ['dex', 'dux', 'dpu', 'dup'].includes(typeId)
+
+const titreEtapeBuildSubstances = l =>
+  (l.substances || []).reduce((substances, s) => {
+    const substance = substancesCamino[s.id_sub]
+
+    if (substance) {
+      substances.push({ id: substance })
+    }
+
+    return substances
+  }, [])
+
+const titreEtapeBuildFondamentales = (l, event, titreEtape, etapeNew) => {
+  const substances = titreEtapeBuildSubstances(l)
+
+  const titulaires = (l.titulaires || []).reduce((titulaires, lien) => {
+    if (lien.entreprise) {
+      titulaires.push({ id: lien.entreprise.id })
+    }
+    return titulaires
+  }, [])
+
+  let statutId = 'fai'
+
+  if (isDecision(titreEtape.typeId)) {
+    statutId = (event.obs || '').match(/rej/) ? 'rej' : 'acc'
+  }
+
+  return {
+    statutId,
+    duree: (l.duree | 0) * 12,
+    surface: +l.surf,
+    titulaires,
+    substances,
+    ...etapeNew
+  }
+}
+
 const titreEtapeBuild = (l, event, titreEtape) => {
   if (!event.dat) return null
 
-  const etape = {}
-
-  allDocsDeb.push(...(event.documentsConsolidation || []))
+  let etapeNew = {}
 
   const documents = (event.documentsConsolidation || []).reduce(
     (documents, documentDeb) => {
@@ -994,31 +1058,49 @@ const titreEtapeBuild = (l, event, titreEtape) => {
 
   allDocsCamino.push(...documents)
 
-  etape.documents = documents
+  etapeNew.documents = documents
 
-  // avis
+  // si le type de l'étape commence par un 'a'
+  // alors c'est un avis favorable ou defavorable
   if (titreEtape.typeId[0] === 'a') {
-    etape.statutId = (event.obs || '').match(/d[ée]favorable/i) ? 'def' : 'fav'
+    etapeNew.statutId = (event.obs || '').match(/d[ée]favorable/i)
+      ? 'def'
+      : 'fav'
 
-    return etape
+    return [etapeNew]
   }
 
-  if (!['men', 'dex', 'dpu'].includes(titreEtape.typeId)) return etape
-
-  const titulaires = (l.titulaires || []).reduce((titulaires, lien) => {
-    if (lien.entreprise) {
-      titulaires.push({ id: lien.entreprise.id })
-    }
-    return titulaires
-  }, [])
-
-  return {
-    statutId: (event.obs || '').match(/rej/) ? 'rej' : 'acc',
-    duree: (l.duree | 0) * 12,
-    surface: +l.surf,
-    titulaires,
-    ...etape
+  // si l'étape n'est pas fondamentale
+  // alors on n'ajoute rien de plus
+  if (!isFondamentale(titreEtape.typeId) && titreEtape.typeId !== 'men') {
+    return [etapeNew]
   }
+
+  // si l'étape est un enregistrement de la demande
+  // alors on crée une mfr fictive pour les données fondamentales
+  if (titreEtape.typeId === 'men') {
+    // deep copy de l'étape de men
+    let etapeMfr = JSON.parse(JSON.stringify(etapeNew).replace(/-men/g, '-mfr'))
+
+    etapeMfr.id = titreEtape.id.replace(/men/g, 'mfr')
+    etapeMfr.typeId = 'mfr'
+
+    // on supprime les documents de la men
+    // qui ont plutôt vocation à aller dans la mfr (lettre de demande)
+    etapeNew.documents = []
+
+    const titreEtapeMfr = JSON.parse(
+      JSON.stringify(titreEtape).replace(/-men/g, '-mfr')
+    )
+
+    etapeMfr = titreEtapeBuildFondamentales(l, event, titreEtapeMfr, etapeMfr)
+
+    etapeMfr.incertitudes = { date: true }
+
+    return [etapeMfr, etapeNew]
+  }
+
+  return [titreEtapeBuildFondamentales(l, event, titreEtape, etapeNew)]
 }
 
 const titreEtapeCreate = (l, event, demarche, typeId, build = () => ({})) => {
@@ -1041,10 +1123,14 @@ const titreEtapeCreate = (l, event, demarche, typeId, build = () => ({})) => {
     titulaires: []
   }
 
-  const props = build(l, event, titreEtape)
-  if (!props) return null
+  const etapesProps = build(l, event, titreEtape)
+  if (!etapesProps || !etapesProps.length) return null
 
-  return { ...titreEtape, ...props }
+  if (!Array.isArray(etapesProps)) {
+    etapesProps = [etapesProps]
+  }
+
+  return etapesProps.map(props => ({ ...titreEtape, ...props }))
 }
 
 const titreEtapesCreate = (affaire, demarche, l) => {
@@ -1065,17 +1151,21 @@ const titreEtapesCreate = (affaire, demarche, l) => {
       }
     }
 
-    const titreEtape = titreEtapeCreate(
+    const titreEtapesNew = titreEtapeCreate(
       l,
       event,
       demarche,
       typeId,
       titreEtapeBuild
     )
-    if (!titreEtape) return titreEtapes
+    if (!titreEtapesNew || !titreEtapesNew.length) return titreEtapes
 
-    titreEtapes.push(titreEtape)
-    demarche.etapes.push(titreEtape)
+    if (!Array.isArray(titreEtapesNew)) {
+      titreEtapesNew = [titreEtapesNew]
+    }
+
+    titreEtapes.push(...titreEtapesNew)
+    demarche.etapes.push(...titreEtapesNew)
 
     return titreEtapes
   }, [])
@@ -1103,10 +1193,7 @@ const titreDemarcheCreate = (l, titre, typeId, build = () => ({})) => {
   // on ne s'intéresse pas aux démarches sans étapes
   // if (!titreDemarche.etapes.length) return null
 
-  return {
-    ...titreDemarche,
-    ...props
-  }
+  return { ...titreDemarche, ...props }
 }
 
 const titreDemarchesCreate = (l, titre) => {
@@ -1138,14 +1225,53 @@ const titreDemarchesCreate = (l, titre) => {
 }
 
 const titrePropsCreate = (l, titre) => {
-  // on ne prend pas les titres sans démarche
   const demarches = titreDemarchesCreate(l, titre)
-  // if (!demarches.length) return null
 
   return {}
 }
 
-async function main() {
+const documentsDebGet = data =>
+  data.reduce(
+    (allDocsDeb, l) =>
+      (l.affaires || []).reduce(
+        (allDocsDeb, affaire) =>
+          (affaire.events || []).reduce((allDocsDeb, event) => {
+            allDocsDeb.push(
+              ...(event.documentsConsolidation || []).map(d => ({
+                ...d,
+                eventId: event.cod_evt.id,
+                ref: `${l.datprefsd}-${l.cod}-${l.txtcod}`
+              }))
+            )
+
+            return allDocsDeb
+          }, allDocsDeb),
+        allDocsDeb
+      ),
+    allDocsDeb
+  )
+
+const eventsDebGet = data =>
+  data.reduce(
+    (allEventsDeb, l) =>
+      (l.affaires || []).reduce(
+        (allEventsDeb, affaire) =>
+          (affaire.events || []).reduce((allEventsDeb, event) => {
+            allEventsDeb.push(
+              ...(event.eventumentsConsolidation || []).map(d => ({
+                ...d,
+                ref: `${l.datprefsd}-${l.cod}-${l.txtcod}`
+              }))
+            )
+
+            return allEventsDeb
+          }, allEventsDeb),
+        allEventsDeb
+      ),
+    allEventsDeb
+  )
+
+const main = async () => {
   tables = await loadSchema(schema)
 
   if (false)
@@ -1162,30 +1288,16 @@ async function main() {
 
   const titres = titresCreate(tables.titres.data, titrePropsCreate)
 
+  documentsDebGet(tables.titres.data)
+
+  eventsDebGet(tables.titres.data)
+
   if (false)
     console.error(
       titres.find(t =>
         t.demarches.find(d => d.etapes.find(e => e.typeId === 'ihi'))
       ).demarches[0].etapes[0]
     )
-
-  const titus = titres.reduce(
-    (r, t) =>
-      t.demarches.reduce(
-        (r, d) =>
-          d.etapes.reduce(
-            (r, e) =>
-              e.titulaires.reduce((r, t) => (t ? r.set(t.id, t) : r), r),
-            r
-          ),
-        r
-      ),
-    new Map()
-  )
-
-  // console.log(JSON.stringify([...titus.values()]))
-
-  // process.exit(0)
 
   fs.writeFileSync(
     '../exports/deb-titres-entreprises.json',
@@ -1195,6 +1307,10 @@ async function main() {
   console.log('fichier ../exports/deb-titres-entreprises.json créé')
 
   fs.writeFileSync('./all-docs-deb.json', JSON.stringify(allDocsDeb, null, 1))
+  fs.writeFileSync(
+    './all-events-deb.json',
+    JSON.stringify(allEventsDeb, null, 1)
+  )
 
   fs.writeFileSync(
     './all-docs-camino.json',
