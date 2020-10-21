@@ -1,5 +1,4 @@
 const { readFileSync } = require('fs')
-const json2csv = require('json2csv').parse
 
 const slugify = require('@sindresorhus/slugify')
 
@@ -10,9 +9,9 @@ const toStartCase = s =>
   toLowerCase(s).replace(/\w+/g, s => `${s[0].toUpperCase()}${s.slice(1)}`)
 
 const substances = require('../sources/json/substances-rntm-camino.json')
-const errMsg = '--------------------------------> ERROR'
 
 const domaineGet = subs => (subs.length ? subs[0].domaine : 'inconnu')
+let nbErrors = 0
 
 const pointsCreate = (titreEtapeId, contour, contourId, groupeId) =>
   contour.reduce((r, [x, y], pointId) => {
@@ -45,6 +44,9 @@ const typesCamino = {
 }
 
 const featureFormat = geojsonFeature => {
+
+  const errors = []
+
   const substancesCreate = (substances, titreEtapeId) =>
     substances.map(s => ({
       titreEtapeId,
@@ -60,11 +62,9 @@ const featureFormat = geojsonFeature => {
 
         if (!cur) return acc
 
-        console.log({ cur })
-
         const sub = substances.find(
           s =>
-            (s.aliases && s.aliases.includes(cur)) ||
+            (s.alias && s.alias.includes(cur)) ||
             (cur.includes('connexes') && s.id === 'oooo')
         )
 
@@ -84,7 +84,7 @@ const featureFormat = geojsonFeature => {
   const props = geojsonFeature.properties
 
   const substancesPrincipales = substancesLookup(
-    props.Substances_principales_concessiblesx
+    props.Substances_principales_concessibles
   )
   const substancesProduites = substancesLookup(props.Substances_produites)
   const substancesAutres = substancesLookup(props.Autres_substances)
@@ -98,31 +98,38 @@ const featureFormat = geojsonFeature => {
   ]
 
   const domaineId = domaineGet(substancesToutes)
+  if( domaineId === 'inconnu') {
+    if( !substancesToutes.length ){
+      errors.push('Domaine inconnu car aucune substance')
+    }else {
+      errors.push('Domaine inconnu')
+    }
+  }
 
   const typeId = (({ Nature: type }) => {
     const typeId = typesCamino[type]
 
     if (!typeId) {
-      console.error('pas de correspondance pour ce type:', type)
-      // process.exit(0)
+      errors.push(`Type inconnu (${type})`)
       return null
     }
 
     return typeId
   })(props)
 
-  const titreNom = toLowerCase(props.nomtitre)
+  const titreNom = toLowerCase(props.Nom)
 
   const demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
+  if (demarcheEtapeDate === '') {
+    //TODO
+    // errors.push('Date manquante')
+  }
 
   const demarcheEtapeDateFin = (props.Date_peremption || '').replace(/\//g, '-')
 
   const duree =
     +demarcheEtapeDateFin.slice(4, 9) - +demarcheEtapeDate.slice(4, 9)
 
-  if (demarcheEtapeDate === '') {
-    console.error(`Erreur: date manquante ${titreNom}`, geojsonFeature)
-  }
 
   const dateId = demarcheEtapeDate.slice(0, 4)
 
@@ -149,6 +156,14 @@ const featureFormat = geojsonFeature => {
       nom: toLowerCase(titulaire)
     }
   ]
+
+  if (errors.length) {
+    console.log(props.Code, '-', titreNom)
+    errors.forEach(e =>
+    console.log('\t-', e))
+    console.log('')
+    nbErrors++
+  }
 
   return {
     titres: {
@@ -202,7 +217,7 @@ const featureFormat = geojsonFeature => {
       entrepriseId: t.id,
       titreEtapeId
     }))
-  }
+  };
 }
 
 const main = () => {
@@ -211,7 +226,14 @@ const main = () => {
   )
 
   const titres = geos.features.reduce((titres, f) => {
-    const titre = featureFormat(f)
+
+    //Corrections manuelles
+    if (f.properties.Code === '19TM0143') {
+      // Substances_principales_concessibles: 'Or, argent antimoine, tungstène',
+      f.properties.Substances_principales_concessibles = 'Or, argent, antimoine, tungstène'
+    }
+
+    const titre = featureFormat(f);
 
     if (titre) {
       titres.push(titre)
@@ -220,7 +242,9 @@ const main = () => {
     return titres
   }, [])
 
-  console.log(titres.length)
+  console.log(`${titres.length} titres ont été traités`)
+  console.log(`dont ${nbErrors} titres avec au moins une erreur`)
+  console.log(`dont ${titres.length - nbErrors} avec aucune erreur`)
 }
 
 main()
