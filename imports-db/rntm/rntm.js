@@ -1,16 +1,9 @@
 const { readFileSync } = require('fs')
 
 const slugify = require('@sindresorhus/slugify')
+const substancesLookup = require("./substances");
+const { toLowerCase, padStart } = require("./_utils");
 
-const padStart = (n, i, c) => n.toString().padStart(i, c)
-const padEnd = (n, i, c) => n.toString().padEnd(i, c)
-const toLowerCase = s => (s || '').toString().toLowerCase()
-const toStartCase = s =>
-  toLowerCase(s).replace(/\w+/g, s => `${s[0].toUpperCase()}${s.slice(1)}`)
-
-const substances = require('../sources/json/substances-rntm-camino.json')
-
-const domaineGet = subs => (subs.length ? subs[0].domaine : 'inconnu')
 let nbErrors = 0
 
 const pointsCreate = (titreEtapeId, contour, contourId, groupeId) =>
@@ -40,7 +33,8 @@ const typesCamino = {
   PEC: 'pc',
   Concession: 'cx',
   'Permis de recherche': 'pr',
-  "Permis d'exploitation": 'px'
+  "Permis d'exploitation": 'px',
+  'Non défini': 'in'
 }
 
 const featureFormat = geojsonFeature => {
@@ -53,33 +47,6 @@ const featureFormat = geojsonFeature => {
       substanceId: s.id
     }))
 
-  const substancesLookup = val =>
-    (val || '')
-      .replace(/, /g, ',')
-      .split(/[,;]/)
-      .reduce((acc, cur) => {
-        cur = toLowerCase(cur).trim()
-
-        if (!cur) return acc
-
-        const sub = substances.find(
-          s =>
-            (s.alias && s.alias.includes(cur)) ||
-            (cur.includes('connexes') && s.id === 'oooo')
-        )
-
-        if (!sub) {
-          console.error(`Erreur: substance ${cur} non identifée`)
-
-          throw new Error('substance')
-        }
-
-        if (cur && sub) {
-          acc.push(sub)
-        }
-
-        return acc
-      }, [])
 
   const props = geojsonFeature.properties
 
@@ -97,17 +64,25 @@ const featureFormat = geojsonFeature => {
     ])
   ]
 
-  const domaineId = domaineGet(substancesToutes)
-  if( domaineId === 'inconnu') {
-    if( !substancesToutes.length ){
-      errors.push('Domaine inconnu car aucune substance')
-    }else {
-      errors.push('Domaine inconnu')
-    }
+  const domaineIds = [...new Set(substancesToutes.map(s => s.domaine))];
+  let domaineId
+  if (domaineIds.length === 0) {
+    // Si pas de substance, on met de domaine "inconnu"
+    domaineId = 'i'
+  }else if( domaineIds.length === 1){
+    domaineId = domaineIds[0]
+  }else {
+    // errors.push(`Plusieurs domaines possibles : ${substancesToutes.map(s => s.alias + `(${s.domaine})`).join(", ")}` )
+    domaineId = 'i'
   }
 
   const typeId = (({ Nature: type }) => {
-    const typeId = typesCamino[type]
+    let typeId;
+    if (!type) {
+      typeId = 'in'
+    }else {
+      typeId = typesCamino[type];
+    }
 
     if (!typeId) {
       errors.push(`Type inconnu (${type})`)
@@ -161,7 +136,6 @@ const featureFormat = geojsonFeature => {
     console.log(props.Code, '-', titreNom)
     errors.forEach(e =>
     console.log('\t-', e))
-    console.log('')
     nbErrors++
   }
 
