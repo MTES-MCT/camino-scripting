@@ -1,4 +1,4 @@
-const substancesLookup = require("./substances");
+const {substancesLookup, substancesPrincipalesGet} = require("./substances");
 const substances = require('../sources/json/substances-rntm-camino.json')
 const each = require('jest-each').default
 
@@ -19,19 +19,32 @@ describe("teste la gestion des substances", () => {
 
 
     test('parse correctement les substances', () => {
-        expect(substancesLookup("or")).toContainEqual(substanceByAliasGet("or"));
+        expect(substancesLookup({sub: "or"}, 'sub')).toContainEqual(substanceByAliasGet("or"));
     })
 
     test('parse correctement les substances séparées par des virgules', () => {
-        expect(substancesLookup("or,argent, cuivre")).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("cuivre")]);
+        expect(substancesLookup({sub: "or,argent, cuivre"}, 'sub')).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("cuivre")]);
     })
 
     test('parse correctement les substances séparées par des points virgules', () => {
-        expect(substancesLookup("or; argent;cuivre")).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("cuivre")]);
+        expect(substancesLookup({sub:"or; argent;cuivre"}, 'sub')).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("cuivre")]);
     })
 
     test('parse correctement les substances avec des espaces', () => {
-        expect(substancesLookup("or; argent, substances connexes")).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("substances connexes")]);
+        expect(substancesLookup({sub:"or; argent, substances connexes"}, 'sub')).toEqual([substanceByAliasGet("or"), substanceByAliasGet("argent"), substanceByAliasGet("substances connexes")]);
+    })
+
+    test('la substances "18" est ignorée', () => {
+        expect(substancesLookup({sub:"or; 18"}, 'sub')).toEqual([substanceByAliasGet("or")]);
+    })
+
+    test('si plusieurs substances alors le bitume n’est pas une substance principale', () => {
+        const props = {
+            "Substances_principales_concessibles": "Bitumes",
+            "Substances_produites": "Bitumes",
+            "Autres_substances": "Bitumes ; Hydrocarbures liquides"
+        }
+        expect(substancesPrincipalesGet(props)).toEqual([substanceByAliasGet('hydrocarbures liquides')])
     })
 
 })

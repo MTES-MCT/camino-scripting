@@ -1,10 +1,18 @@
-const { readFileSync } = require('fs')
+const { readFileSync, writeFileSync } = require('fs')
 
 const slugify = require('@sindresorhus/slugify')
-const substancesLookup = require("./substances");
+const {substancesCreate, substancesGet} = require("./substances");
 const { toLowerCase, padStart } = require("./_utils");
+const titresReferencesRntmCamino = require('../sources/json/titres-references-rntm-camino.json')
+const domaineGet = require("./domaine");
+const {substancesAllGet} = require("./substances");
+const {substancesPrincipalesGet} = require("./substances");
+const json2csv = require('json2csv').parse
+
+
 
 let nbErrors = 0
+let nbTitresIgnores = 0
 
 const pointsCreate = (titreEtapeId, contour, contourId, groupeId) =>
   contour.reduce((r, [x, y], pointId) => {
@@ -37,44 +45,16 @@ const typesCamino = {
   'Non défini': 'in'
 }
 
-const featureFormat = geojsonFeature => {
+const featureFormat = (geojsonFeature, reportRow) => {
 
   const errors = []
-
-  const substancesCreate = (substances, titreEtapeId) =>
-    substances.map(s => ({
-      titreEtapeId,
-      substanceId: s.id
-    }))
-
+  const messages = []
 
   const props = geojsonFeature.properties
 
-  const substancesPrincipales = substancesLookup(
-    props.Substances_principales_concessibles
-  )
-  const substancesProduites = substancesLookup(props.Substances_produites)
-  const substancesAutres = substancesLookup(props.Autres_substances)
-
-  const substancesToutes = [
-    ...new Set([
-      ...substancesPrincipales,
-      ...substancesProduites,
-      ...substancesAutres
-    ])
-  ]
-
-  const domaineIds = [...new Set(substancesToutes.map(s => s.domaine))];
-  let domaineId
-  if (domaineIds.length === 0) {
-    // Si pas de substance, on met de domaine "inconnu"
-    domaineId = 'i'
-  }else if( domaineIds.length === 1){
-    domaineId = domaineIds[0]
-  }else {
-    // errors.push(`Plusieurs domaines possibles : ${substancesToutes.map(s => s.alias + `(${s.domaine})`).join(", ")}` )
-    domaineId = 'i'
-  }
+  const substancesPrincipales = substancesPrincipalesGet(props, reportRow);
+  const domaineId = domaineGet(substancesPrincipales, props.Code, reportRow)
+  const substances = substancesAllGet(props, domaineId, reportRow)
 
   const typeId = (({ Nature: type }) => {
     let typeId;
@@ -94,17 +74,13 @@ const featureFormat = geojsonFeature => {
 
   const titreNom = toLowerCase(props.Nom)
 
-  const demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
+  let demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
   if (demarcheEtapeDate === '') {
-    //TODO
-    // errors.push('Date manquante')
+    demarcheEtapeDate = '21-04-1810'
+    // messages.push(`Pas de date d’octroi de définie => ${demarcheEtapeDate}`)
   }
 
   const demarcheEtapeDateFin = (props.Date_peremption || '').replace(/\//g, '-')
-
-  const duree =
-    +demarcheEtapeDateFin.slice(4, 9) - +demarcheEtapeDate.slice(4, 9)
-
 
   const dateId = demarcheEtapeDate.slice(0, 4)
 
@@ -118,7 +94,7 @@ const featureFormat = geojsonFeature => {
 
   const titreEtapeId = `${titreDemarcheId}-${etapeId}01`
 
-  const titresSubstances = substancesCreate(substancesToutes, titreEtapeId)
+  const titresSubstances = substancesCreate(substances, titreEtapeId)
 
   const demarchePosition = (() => {
     return 1
@@ -132,10 +108,16 @@ const featureFormat = geojsonFeature => {
     }
   ]
 
+
+
+  if (messages.length) {
+    console.log(props.Code, "-", props.Nom, "-", props.Substances_principales_concessibles, "-", props.Substances_produites ,"-", props.Autres_substances)
+
+    messages.forEach(e => console.log('\t-', e))
+  }
+
   if (errors.length) {
-    console.log(props.Code, '-', titreNom)
-    errors.forEach(e =>
-    console.log('\t-', e))
+    errors.forEach(e => console.error('\t-', e))
     nbErrors++
   }
 
@@ -148,9 +130,9 @@ const featureFormat = geojsonFeature => {
       statutId: 'ind',
       references: props.idtm
         ? {
-            métier: props.idtm
+            "rnt": props.idtm
           }
-        : null
+        : undefined
     },
     titresSubstances,
     titresDemarches: [
@@ -170,9 +152,9 @@ const featureFormat = geojsonFeature => {
         statutId: 'acc',
         ordre: 1,
         date: demarcheEtapeDate,
-        duree,
+        duree: undefined,
         dateFin: demarcheEtapeDateFin,
-        surface: props.surf_off || 0
+        surface: props.surf_off || undefined
       }
     ],
     titresEmprises: {
@@ -194,20 +176,35 @@ const featureFormat = geojsonFeature => {
   };
 }
 
+
 const main = () => {
   const geos = JSON.parse(
     readFileSync('../sources/json/rntm.geojson').toString()
   )
 
+  const reportColumns =
+      ["Code", "Nom", "Substances_principales_concessibles", "Substances_produites", "Autres_substances"]
+
+  const report = []
   const titres = geos.features.reduce((titres, f) => {
 
-    //Corrections manuelles
-    if (f.properties.Code === '19TM0143') {
-      // Substances_principales_concessibles: 'Or, argent antimoine, tungstène',
-      f.properties.Substances_principales_concessibles = 'Or, argent, antimoine, tungstène'
+    const reportRow = reportColumns.reduce((acc, c) => ({...acc, [c]: f.properties[c]}), {})
+    report.push(reportRow)
+
+    const code = f.properties.Code;
+
+    // console.log(code, "-", f.properties.Nom)
+
+    const titreCamino = titresReferencesRntmCamino.find( tf => tf.type_id === 'rnt' && tf.nom === code)
+    reportRow['Camino'] = ''
+    if (titreCamino) {
+      // console.log(`\t- Titre ignoré car existant dans la base Camino ${titreCamino.titre_id}`)
+      nbTitresIgnores++
+      reportRow['Camino'] = `https://camino.beta.gouv.fr/titres/${titreCamino.titre_id}`
+      return titres
     }
 
-    const titre = featureFormat(f);
+    const titre = featureFormat(f, reportRow);
 
     if (titre) {
       titres.push(titre)
@@ -216,7 +213,15 @@ const main = () => {
     return titres
   }, [])
 
+  try {
+    const csv = json2csv(report)
+    writeFileSync('./results/rapport.csv', csv, )
+  } catch (err) {
+    console.error(err)
+  }
+
   console.log(`${titres.length} titres ont été traités`)
+  console.log(`${nbTitresIgnores} titres non traités car déjà existant dans Camino`)
   console.log(`dont ${nbErrors} titres avec au moins une erreur`)
   console.log(`dont ${titres.length - nbErrors} avec aucune erreur`)
 }

@@ -2,3 +2,4 @@ node_modules
 sources/*
 exports/*
 package-lock.json
+rntm/results
