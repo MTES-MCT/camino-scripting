@@ -5,6 +5,7 @@ const {substancesCreate, substancesGet} = require("./substances");
 const { toLowerCase, padStart } = require("./_utils");
 const titresReferencesRntmCamino = require('../sources/json/titres-references-rntm-camino.json')
 const domaineGet = require("./domaine");
+const {nomGet} = require("./nom");
 const {substancesAllGet} = require("./substances");
 const {substancesPrincipalesGet} = require("./substances");
 const json2csv = require('json2csv').parse
@@ -72,19 +73,21 @@ const featureFormat = (geojsonFeature, reportRow) => {
     return typeId
   })(props)
 
-  const titreNom = toLowerCase(props.Nom)
+  const titreNom = nomGet(props.Nom, reportRow)
 
   let demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
   if (demarcheEtapeDate === '') {
     demarcheEtapeDate = '21-04-1810'
-    // messages.push(`Pas de date d’octroi de définie => ${demarcheEtapeDate}`)
+    // reportRow['Remarque date'] = `Pas de date d’octroi de définie`
   }
+  // reportRow['Résultat date'] = demarcheEtapeDate
 
   const demarcheEtapeDateFin = (props.Date_peremption || '').replace(/\//g, '-')
 
   const dateId = demarcheEtapeDate.slice(0, 4)
 
   const titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
+  // reportRow['Résultat titreId'] = titreId
 
   const demarcheId = 'oct'
 
@@ -95,10 +98,6 @@ const featureFormat = (geojsonFeature, reportRow) => {
   const titreEtapeId = `${titreDemarcheId}-${etapeId}01`
 
   const titresSubstances = substancesCreate(substances, titreEtapeId)
-
-  const demarchePosition = (() => {
-    return 1
-  })()
 
   const titulaire = props.titulaire
   const entreprises = [
@@ -141,7 +140,7 @@ const featureFormat = (geojsonFeature, reportRow) => {
         typeId: demarcheId,
         titreId,
         statutId: 'ind',
-        ordre: demarchePosition
+        ordre: 1
       }
     ],
     titresEtapes: [
