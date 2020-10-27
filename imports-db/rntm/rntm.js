@@ -48,9 +48,6 @@ const typesCamino = {
 
 const featureFormat = (geojsonFeature, reportRow) => {
 
-  const errors = []
-  const messages = []
-
   const props = geojsonFeature.properties
 
   const substancesPrincipales = substancesPrincipalesGet(props, reportRow);
@@ -66,8 +63,7 @@ const featureFormat = (geojsonFeature, reportRow) => {
     }
 
     if (!typeId) {
-      errors.push(`Type inconnu (${type})`)
-      return null
+      throw new Error(`Type inconnu (${type})`)
     }
 
     return typeId
@@ -77,14 +73,23 @@ const featureFormat = (geojsonFeature, reportRow) => {
 
   let demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
   if (demarcheEtapeDate === '') {
-    demarcheEtapeDate = '21-04-1810'
-    // reportRow['Remarque date'] = `Pas de date d’octroi de définie`
+    //On essaie de chercher la date dans le nom
+    const year = nom.match(/ *\d\d\d\d*/)
+    if (year) {
+      reportRow['Remarque date'] = `On prend l’année qui est dans le nom du titre`
+      demarcheEtapeDate = `01-01-${year[0]}`
+    }
+
+    if (demarcheEtapeDate === '') {
+      demarcheEtapeDate = '21-04-1810';
+      reportRow['Remarque date'] = `Pas de date d’octroi de définie`
+    }
   }
-  // reportRow['Résultat date'] = demarcheEtapeDate
+  reportRow['Résultat date'] = demarcheEtapeDate
 
   const demarcheEtapeDateFin = (props.Date_peremption || '').replace(/\//g, '-')
 
-  const dateId = demarcheEtapeDate.slice(0, 4)
+  const dateId = demarcheEtapeDate.slice(6)
 
   const titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
   // reportRow['Résultat titreId'] = titreId
@@ -106,19 +111,6 @@ const featureFormat = (geojsonFeature, reportRow) => {
       nom: toLowerCase(titulaire)
     }
   ]
-
-
-
-  if (messages.length) {
-    console.log(props.Code, "-", props.Nom, "-", props.Substances_principales_concessibles, "-", props.Substances_produites ,"-", props.Autres_substances)
-
-    messages.forEach(e => console.log('\t-', e))
-  }
-
-  if (errors.length) {
-    errors.forEach(e => console.error('\t-', e))
-    nbErrors++
-  }
 
   return {
     titres: {
@@ -211,6 +203,15 @@ const main = () => {
 
     return titres
   }, [])
+
+  const titresIds = titres.map(t => t.titres.id)
+  const duplicateIds = [...new Set(titresIds.filter((item, index) => titresIds.indexOf(item) != index))]
+
+  //FIXME
+  // if( duplicateIds){
+  //   duplicateIds.forEach(id => console.log(id))
+  //   throw new Error("Il y a des ids de titres en double")
+  // }
 
   try {
     const csv = json2csv(report)
