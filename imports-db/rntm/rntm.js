@@ -4,16 +4,29 @@ const slugify = require('@sindresorhus/slugify')
 const {substancesCreate, substancesGet} = require("./substances");
 const { toLowerCase, padStart } = require("./_utils");
 const titresReferencesRntmCamino = require('../sources/json/titres-references-rntm-camino.json')
+const titresIdsCamino = require('../sources/json/titres-ids-camino.json')
 const domaineGet = require("./domaine");
 const {nomGet} = require("./nom");
 const {substancesAllGet} = require("./substances");
 const {substancesPrincipalesGet} = require("./substances");
 const json2csv = require('json2csv').parse
 
-
-
 let nbErrors = 0
 let nbTitresIgnores = 0
+
+const titreIdGet = (domaineId, typeId, titreNom, index, dateId, titreIds) => {
+  let titreId
+  if (index === 1) {
+    titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
+  }else {
+    titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${index}-${dateId}`)
+  }
+  if (titreIds.includes(titreId)) {
+    return titreIdGet(domaineId, typeId, titreNom, index+1, dateId, titreIds)
+  }
+
+  return titreId;
+}
 
 const pointsCreate = (titreEtapeId, contour, contourId, groupeId) =>
   contour.reduce((r, [x, y], pointId) => {
@@ -46,7 +59,7 @@ const typesCamino = {
   'Non défini': 'in'
 }
 
-const featureFormat = (geojsonFeature, reportRow) => {
+const featureFormat = (geojsonFeature, titreIds, reportRow) => {
 
   const props = geojsonFeature.properties
 
@@ -91,10 +104,10 @@ const featureFormat = (geojsonFeature, reportRow) => {
 
   const dateId = demarcheEtapeDate.slice(6)
 
-  const titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
-  // reportRow['Résultat titreId'] = titreId
+  const titreId = titreIdGet(domaineId, typeId, titreNom, 1, dateId, titreIds)
+  reportRow['Résultat titreId'] = titreId
 
-  const demarcheId = 'oct'
+  const demarcheId = 'oct';
 
   const titreDemarcheId = `${titreId}-${demarcheId}01`
 
@@ -148,10 +161,6 @@ const featureFormat = (geojsonFeature, reportRow) => {
         surface: props.surf_off || undefined
       }
     ],
-    titresEmprises: {
-      titreEtapeId,
-      empriseId: 'ter'
-    },
     titresPoints: geojsonFeature.geometry.coordinates.reduce(
       (res, points, contourId) => [
         ...res,
@@ -184,18 +193,16 @@ const main = () => {
 
     const code = f.properties.Code;
 
-    // console.log(code, "-", f.properties.Nom)
-
     const titreCamino = titresReferencesRntmCamino.find( tf => tf.type_id === 'rnt' && tf.nom === code)
     reportRow['Camino'] = ''
     if (titreCamino) {
-      // console.log(`\t- Titre ignoré car existant dans la base Camino ${titreCamino.titre_id}`)
       nbTitresIgnores++
       reportRow['Camino'] = `https://camino.beta.gouv.fr/titres/${titreCamino.titre_id}`
       return titres
     }
 
-    const titre = featureFormat(f, reportRow);
+    const titresIds = titres.map(t => t.titres.id)
+    const titre = featureFormat(f, titresIds, reportRow);
 
     if (titre) {
       titres.push(titre)
@@ -205,13 +212,18 @@ const main = () => {
   }, [])
 
   const titresIds = titres.map(t => t.titres.id)
-  const duplicateIds = [...new Set(titresIds.filter((item, index) => titresIds.indexOf(item) != index))]
+  const duplicateIds = [...new Set(titresIds.filter((item, index) => titresIds.indexOf(item) !== index))]
+  if( duplicateIds.length){
+    duplicateIds.forEach(id => console.log(id))
+    throw new Error("Il y a des ids de titres en double")
+  }
 
-  //FIXME
-  // if( duplicateIds){
-  //   duplicateIds.forEach(id => console.log(id))
-  //   throw new Error("Il y a des ids de titres en double")
-  // }
+  //vérifie que ces ids ne sont pas déjà présents dans Camino
+  const existingIds = titresIdsCamino.map(t => t.id).filter(value => titresIds.includes(value))
+  if (existingIds.length) {
+    existingIds.forEach(id => console.log(id))
+    throw new Error("Il y a des ids de titres déjà existants dans Camino")
+  }
 
   try {
     const csv = json2csv(report)
