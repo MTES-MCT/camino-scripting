@@ -1,7 +1,7 @@
 const { readFileSync, writeFileSync } = require('fs')
 
 const slugify = require('@sindresorhus/slugify')
-const {substancesCreate, substancesGet} = require("./substances");
+const {substancesCreate} = require("./substances");
 const { toLowerCase, padStart } = require("./_utils");
 const titresReferencesRntmCamino = require('../sources/json/titres-references-rntm-camino.json')
 const titresIdsCamino = require('../sources/json/titres-ids-camino.json')
@@ -26,6 +26,19 @@ const titreIdGet = (domaineId, typeId, titreNom, index, dateId, titreIds) => {
   }
 
   return titreId;
+}
+
+const dateReverse = (date) => date ? `${date.substr(6, 4)}-${date.substr(3, 2)}-${date.substr(0, 2)}` : ''
+
+const pointsContourCreate = (titreEtapeId, rntmId, contour, contourId, groupeId) => {
+  //Corrections manuelles de la dimension de certains titres
+  if (rntmId === '67TM0513') {
+    return contour.reduce((acc, c, cId) => [...acc, ...pointsCreate(titreEtapeId, c, cId, groupeId)], [])
+  }else if(["09TM0215", "57TM0030", "57TM0053", "57TM0138", "57TM0139", "67TM0459",
+    "67TM0511", "68TM0174", "74TM0033", "76TM0003", "88TM0013"].includes(rntmId)){
+    return pointsCreate(titreEtapeId, contour[0], contourId, groupeId)
+  }
+  return pointsCreate(titreEtapeId, contour, contourId, groupeId)
 }
 
 const pointsCreate = (titreEtapeId, contour, contourId, groupeId) =>
@@ -81,28 +94,27 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
 
     return typeId
   })(props)
+  reportRow['Résultat type'] = `${typeId}${domaineId}`
 
-  const titreNom = nomGet(props.Nom, reportRow)
+  const titreNom = nomGet(props.Nom, reportRow);
 
-  let demarcheEtapeDate = (props.Date_octroi || '').replace(/\//g, '-')
+  let demarcheEtapeDate = dateReverse(props.Date_octroi)
   if (demarcheEtapeDate === '') {
     //On essaie de chercher la date dans le nom
     const year = nom.match(/ *\d\d\d\d*/)
     if (year) {
       reportRow['Remarque date'] = `On prend l’année qui est dans le nom du titre`
-      demarcheEtapeDate = `01-01-${year[0]}`
-    }
-
-    if (demarcheEtapeDate === '') {
-      demarcheEtapeDate = '21-04-1810';
+      demarcheEtapeDate = `${year[0]}-01-01`
+    }else {
+      demarcheEtapeDate = '1810-04-21';
       reportRow['Remarque date'] = `Pas de date d’octroi de définie`
     }
   }
   reportRow['Résultat date'] = demarcheEtapeDate
 
-  const demarcheEtapeDateFin = (props.Date_peremption || '').replace(/\//g, '-')
+  let demarcheEtapeDateFin = dateReverse(props.Date_peremption)
 
-  const dateId = demarcheEtapeDate.slice(6)
+  const dateId = demarcheEtapeDate.substr(0,4);
 
   const titreId = titreIdGet(domaineId, typeId, titreNom, 1, dateId, titreIds)
   reportRow['Résultat titreId'] = titreId
@@ -126,53 +138,50 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
   ]
 
   return {
-    titres: {
       id: titreId,
       nom: titreNom,
-      typeId,
+      typeId: `${typeId}${domaineId}`,
       domaineId,
       statutId: 'ind',
-      references: props.idtm
-        ? {
-            "rnt": props.idtm
-          }
-        : undefined
-    },
-    titresSubstances,
-    titresDemarches: [
-      {
+      substancesTitreEtapeId: titreDemarcheId,
+      pointsTitreEtapeId: titreDemarcheId,
+      references: [{
+        titreId,
+        typeId: 'rnt',
+        nom: props.Code
+      }],
+      demarches: [{
         id: titreDemarcheId,
         typeId: demarcheId,
         titreId,
         statutId: 'ind',
-        ordre: 1
-      }
-    ],
-    titresEtapes: [
-      {
-        id: titreEtapeId,
-        titreDemarcheId: titreDemarcheId,
-        typeId: etapeId,
-        statutId: 'acc',
         ordre: 1,
-        date: demarcheEtapeDate,
-        duree: undefined,
-        dateFin: demarcheEtapeDateFin,
-        surface: props.surf_off || undefined
-      }
-    ],
-    titresPoints: geojsonFeature.geometry.coordinates.reduce(
-      (res, points, contourId) => [
-        ...res,
-        ...pointsCreate(titreEtapeId, points, contourId, 0)
-      ],
-      []
-    ),
-    entreprises,
-    titresTitulaires: entreprises.map(t => ({
-      entrepriseId: t.id,
-      titreEtapeId
-    }))
+        etapes: [
+          {
+            id: titreEtapeId,
+            titreDemarcheId: titreDemarcheId,
+            typeId: etapeId,
+            statutId: 'acc',
+            ordre: 1,
+            date: demarcheEtapeDate,
+            dateFin: demarcheEtapeDateFin,
+            surface: props.surf_off || undefined,
+            substances: titresSubstances,
+            points: geojsonFeature.geometry.coordinates.reduce(
+                (res, points, contourId) => [
+                  ...res,
+                  ...pointsContourCreate(titreEtapeId, props.Code, points, contourId, 0)
+                ],
+                []
+            )
+          }
+        ]
+      }]
+    // entreprises,
+    // titresTitulaires: entreprises.map(t => ({
+    //   entrepriseId: t.id,
+    //   titreEtapeId
+    // }))
   };
 }
 
@@ -201,7 +210,7 @@ const main = () => {
       return titres
     }
 
-    const titresIds = titres.map(t => t.titres.id)
+    const titresIds = titres.map(t => t.id)
     const titre = featureFormat(f, titresIds, reportRow);
 
     if (titre) {
@@ -211,7 +220,7 @@ const main = () => {
     return titres
   }, [])
 
-  const titresIds = titres.map(t => t.titres.id)
+  const titresIds = titres.map(t => t.id)
   const duplicateIds = [...new Set(titresIds.filter((item, index) => titresIds.indexOf(item) !== index))]
   if( duplicateIds.length){
     duplicateIds.forEach(id => console.log(id))
@@ -222,12 +231,17 @@ const main = () => {
   const existingIds = titresIdsCamino.map(t => t.id).filter(value => titresIds.includes(value))
   if (existingIds.length) {
     existingIds.forEach(id => console.log(id))
-    throw new Error("Il y a des ids de titres déjà existants dans Camino")
+    // throw new Error("Il y a des ids de titres déjà existants dans Camino")
   }
 
   try {
     const csv = json2csv(report)
     writeFileSync('./results/rapport.csv', csv, )
+
+    writeFileSync(
+        './results/rntm-titres.json',
+        JSON.stringify(titres , null, 2)
+    )
   } catch (err) {
     console.error(err)
   }
