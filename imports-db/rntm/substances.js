@@ -47,11 +47,6 @@ const substancesLookup = (props, substanceKey, reportRow) => {
     return result
 }
 
-const substancesCreate = (substances, titreEtapeId) =>
-    substances.map(s => ({
-        titreEtapeId,
-        substanceId: s.id
-    }))
 
 //On récupère seulement les substances du domaine des substances principales
 const substancesAllGet = (props, domaineId, reportRow) => {
@@ -122,4 +117,4 @@ const substancesPrincipalesGet = (props, reportRow) => {
     return result
 }
 
-module.exports = {substancesLookup, substancesCreate, substancesPrincipalesGet, substancesAllGet}
+module.exports = {substancesLookup, substancesPrincipalesGet, substancesAllGet}

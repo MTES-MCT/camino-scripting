@@ -1,10 +1,11 @@
 const { readFileSync, writeFileSync } = require('fs')
+const cryptoRandomString = require('crypto-random-string')
 
 const slugify = require('@sindresorhus/slugify')
-const {substancesCreate} = require("./substances");
 const { toLowerCase, padStart } = require("./_utils");
 const titresReferencesRntmCamino = require('../sources/json/titres-references-rntm-camino.json')
 const titresIdsCamino = require('../sources/json/titres-ids-camino.json')
+const rntmDebReferences = require('../sources/json/rntm_deb_references.json')
 const domaineGet = require("./domaine");
 const {nomGet} = require("./nom");
 const {substancesAllGet} = require("./substances");
@@ -14,15 +15,12 @@ const json2csv = require('json2csv').parse
 let nbErrors = 0
 let nbTitresIgnores = 0
 
-const titreIdGet = (domaineId, typeId, titreNom, index, dateId, titreIds) => {
-  let titreId
-  if (index === 1) {
-    titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
-  }else {
-    titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${index}-${dateId}`)
-  }
+const titreIdGet = (domaineId, typeId, titreNom, dateId, titreIds) => {
+  let titreId = slugify(`${domaineId}-${typeId}-${titreNom}-${dateId}`)
   if (titreIds.includes(titreId)) {
-    return titreIdGet(domaineId, typeId, titreNom, index+1, dateId, titreIds)
+    const hash = cryptoRandomString({ length: 8 })
+    titreId = slugify(`${titreId}-${hash}`)
+    console.log(titreId)
   }
 
   return titreId;
@@ -34,9 +32,10 @@ const pointsContourCreate = (titreEtapeId, rntmId, contour, contourId, groupeId)
   //Corrections manuelles de la dimension de certains titres
   if (rntmId === '67TM0513') {
     return contour.reduce((acc, c, cId) => [...acc, ...pointsCreate(titreEtapeId, c, cId, groupeId)], [])
-  }else if(["09TM0215", "57TM0030", "57TM0053", "57TM0138", "57TM0139", "67TM0459",
-    "67TM0511", "68TM0174", "74TM0033", "76TM0003", "88TM0013"].includes(rntmId)){
+  }else if(["09TM0215", "57TM0053", "57TM0138", "57TM0139", "74TM0033", "76TM0003"].includes(rntmId)){
     return pointsCreate(titreEtapeId, contour[0], contourId, groupeId)
+  }else if(["57TM0030", "67TM0459", "67TM0511", "68TM0174", "88TM0013"].includes(rntmId)){
+    return []
   }
   return pointsCreate(titreEtapeId, contour, contourId, groupeId)
 }
@@ -116,7 +115,7 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
 
   const dateId = demarcheEtapeDate.substr(0,4);
 
-  const titreId = titreIdGet(domaineId, typeId, titreNom, 1, dateId, titreIds)
+  const titreId = titreIdGet(domaineId, typeId, titreNom, dateId, titreIds)
   reportRow['Résultat titreId'] = titreId
 
   const demarcheId = 'oct';
@@ -127,8 +126,6 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
 
   const titreEtapeId = `${titreDemarcheId}-${etapeId}01`
 
-  const titresSubstances = substancesCreate(substances, titreEtapeId)
-
   const titulaire = props.titulaire
   const entreprises = [
     {
@@ -136,6 +133,20 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
       nom: toLowerCase(titulaire)
     }
   ]
+
+  const references = [{
+        titreId,
+        typeId: 'rnt',
+        nom: props.Code
+      }]
+
+  if(rntmDebReferences.hasOwnProperty(props.Code)){
+    references.push({
+      titreId,
+      typeId: 'deb',
+      nom: rntmDebReferences[props.Code]
+    })
+  }
 
   return {
       id: titreId,
@@ -145,11 +156,7 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
       statutId: 'ind',
       substancesTitreEtapeId: titreDemarcheId,
       pointsTitreEtapeId: titreDemarcheId,
-      references: [{
-        titreId,
-        typeId: 'rnt',
-        nom: props.Code
-      }],
+      references,
       demarches: [{
         id: titreDemarcheId,
         typeId: demarcheId,
@@ -166,7 +173,9 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
             date: demarcheEtapeDate,
             dateFin: demarcheEtapeDateFin,
             surface: props.surf_off || undefined,
-            substances: titresSubstances,
+            substances: substances.map(s => ({
+              id: s.id
+            })),
             points: geojsonFeature.geometry.coordinates.reduce(
                 (res, points, contourId) => [
                   ...res,
@@ -185,6 +194,8 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
   };
 }
 
+// Mettre les sources (https://drive.google.com/drive/u/1/folders/1hQ15aTvcmRQa4z5jVJta-FaoibWE_wbv)
+// dans imports-db/sources/json
 
 const main = () => {
   const geos = JSON.parse(
