@@ -11,6 +11,8 @@ const {nomGet} = require("./nom");
 const {substancesAllGet} = require("./substances");
 const {substancesPrincipalesGet} = require("./substances");
 const json2csv = require('json2csv').parse
+const turf = require("turf")
+const circle = require("turf-circle")
 
 let nbErrors = 0
 let nbTitresIgnores = 0
@@ -148,6 +150,21 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
     })
   }
 
+  let points = geojsonFeature.geometry.coordinates.reduce(
+      (res, points, contourId) => [
+        ...res,
+        ...pointsContourCreate(titreEtapeId, props.Code, points, contourId, 0)
+      ],
+      []
+  )
+  //Recherche les points qui représentent un cercle
+  if ([30, 101, 180].includes(points.length)) {
+    reportRow['Remarque périmetre'] = "Périmètre rond obsolète, transformation en losange";
+    //On recherche le centre puis on fait un cercle de à 4 points pour créer un losange
+    const coordinates = circle(turf.center(geojsonFeature.geometry).geometry, 50, 4, 'meters').geometry.coordinates[0];
+    points = pointsCreate(titreEtapeId, coordinates, 0, 0);
+  }
+
   return {
       id: titreId,
       nom: titreNom,
@@ -176,13 +193,7 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
             substances: substances.map(s => ({
               id: s.id
             })),
-            points: geojsonFeature.geometry.coordinates.reduce(
-                (res, points, contourId) => [
-                  ...res,
-                  ...pointsContourCreate(titreEtapeId, props.Code, points, contourId, 0)
-                ],
-                []
-            )
+            points
           }
         ]
       }]

@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "@sindresorhus/slugify": "^0.6.0",
+    "@turf/circle": "^6.0.1",
     "@turf/turf": "^5.1.6",
     "crypto-random-string": "^3.2.0",
     "csvtojson": "^2.0.10",
