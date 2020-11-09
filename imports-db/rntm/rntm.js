@@ -13,6 +13,7 @@ const {substancesPrincipalesGet} = require("./substances");
 const json2csv = require('json2csv').parse
 const turf = require("turf")
 const circle = require("turf-circle")
+const {titulairesGet} = require("./titulaires");
 
 let nbErrors = 0
 let nbTitresIgnores = 0
@@ -22,7 +23,6 @@ const titreIdGet = (domaineId, typeId, titreNom, dateId, titreIds) => {
   if (titreIds.includes(titreId)) {
     const hash = cryptoRandomString({ length: 8 })
     titreId = slugify(`${titreId}-${hash}`)
-    console.log(titreId)
   }
 
   return titreId;
@@ -128,14 +128,6 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
 
   const titreEtapeId = `${titreDemarcheId}-${etapeId}01`
 
-  const titulaire = props.titulaire
-  const entreprises = [
-    {
-      id: props.entreprise_id,
-      nom: toLowerCase(titulaire)
-    }
-  ]
-
   const references = [{
         titreId,
         typeId: 'rnt',
@@ -193,16 +185,12 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
             substances: substances.map(s => ({
               id: s.id
             })),
-            points
+            points,
+            titulaires: titulairesGet(props.Dernier_titulaire)
           }
         ]
       }]
-    // entreprises,
-    // titresTitulaires: entreprises.map(t => ({
-    //   entrepriseId: t.id,
-    //   titreEtapeId
-    // }))
-  };
+  }
 }
 
 // Mettre les sources (https://drive.google.com/drive/u/1/folders/1hQ15aTvcmRQa4z5jVJta-FaoibWE_wbv)
@@ -253,7 +241,7 @@ const main = () => {
   const existingIds = titresIdsCamino.map(t => t.id).filter(value => titresIds.includes(value))
   if (existingIds.length) {
     existingIds.forEach(id => console.log(id))
-    // throw new Error("Il y a des ids de titres déjà existants dans Camino")
+    throw new Error("Il y a des ids de titres déjà existants dans Camino")
   }
 
   try {
