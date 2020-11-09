@@ -5,7 +5,7 @@ describe('teste la gestion des titulaires', () => {
   each([
     [null, []],
     ['11/08/1906', []],
-    ['', ['']],
+    ['', []],
     ['toto', ['toto']],
     ['etat', ['Etat']],
     ['état', ['Etat']],
@@ -104,6 +104,48 @@ describe('teste la gestion des titulaires', () => {
     ['Sté des Mines du Bourneix', ['Sté des mines du Bourneix']], //Exeption
     /////////////////////////// gérer les +
     ['- REPLOR + SPI (op)', ['REPLOR + SPI (op)']], //Exeption
+      ['Socité des Charbonnages et Electricité du Sud-est', ['Société des Charbonnages et Electricité du Sud-est']],
+      ['LÉTAT', ['Etat']],
+      ['Etat français', ['Etat']],
+      ['LÉTAT', ['Etat']],
+      ['B.R.G.M.', ['BRGM']],
+      ['E.D.F. ALPES', ['EDF ALPES']],
+      ['E.D.F.', ['ELECTRICITE DE FRANCE (EDF)']],
+      ['E.D.F', ['ELECTRICITE DE FRANCE (EDF)']],
+      ['EDF', ['ELECTRICITE DE FRANCE (EDF)']],
+      ['ELECTRICITE DE FRANCE', ['ELECTRICITE DE FRANCE (EDF)']],
+      ['Sté de Rumigny', ['Société de Rumigny']],
+      ['Sté de Rumigny', ['Société de Rumigny']],
+      ['Ste de Rumigny', ['Société de Rumigny']],
+      ['Eploitation', ['Exploitation']],
+      ['Société Anonymé', ['SA']],
+      ['Société Anonyme', ['SA']],
+      ['S.A.', ['SA']],
+      ['S.A ', ['SA']],
+      ['S A ', ['SA']],
+      ['SOC toto', ['Société toto']],
+      ['SOC. Anonyme toto', ['SA toto']],
+      ['S.A.des Baux.', ['SA des Baux']],
+      ['MR. toto', ['M. toto']],
+      ['Monsieur toto', ['M. toto']],
+      ['Madame toto', ['Mme toto']],
+      ['MONSIEUR ET MADAME DE LA MOUSSAYE', ['M. ET Mme DE LA MOUSSAYE']],
+      ['MM.Xavier et  Charles Lamotte\n' +
+      'Louis, Pierre et Robert Gorand,\n' +
+      'A. Devaux, M. le CdT Le Bicqué,\n' +
+      'Mme Fo', ['MM. Xavier et  harles Lamotte', 'MM. Louis, Pierre et Robert Gorand', 'M. A. Devaux', 'M. le CdT Le Bicqué', 'Mme Fo']],
+      ['MM.TIQUET et PERGAUD', ['M. TIQUET', 'M. PERGAUD']],
+      ['MM Gérard et Prestat', ['M. Gérard', 'M. Prestat']],
+      ['COMINCO France SA', ['SA COMINCO']],
+      ['COMINCO France S.A.', ['SA COMINCO']],
+      ['COMINCO France S.A.', ['SA COMINCO']],
+      ['CIE MINIERE DE ST VINCENT', ['Compagnie MINIERE DE ST VINCENT']],
+      ['BRGM + Vieille Montagne', ['Bureau de Recherches Géologiques et Minières', 'Vieille montagne']],
+      ['BRGM et Vieille Montagne', ['Bureau de Recherches Géologiques et Minières', 'Vieille montagne']],
+      ['B.R.G.M.', ['Bureau de Recherches Géologiques et Minières']],
+      ['Aluminium Pechiney et Union des Bauxites', ['Aluminium Pechiney', 'Union des Bauxites']],
+      ['Aluminium Pechiney + Union des Bauxites', ['Aluminium Pechiney', 'Union des Bauxites']],
+
   ]).test('récupère correctement les titulaires de %s', (input, output) =>
     expect(titulairesGet(input)).toEqual(output)
   )

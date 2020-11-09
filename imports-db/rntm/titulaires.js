@@ -162,6 +162,8 @@ const titulairesGet = (titulaires, reportRow) => {
       console.log('titulaires :>> ', titulaires)
     }
   }
+
+  return result
   /////////////
 
   return result
