@@ -145,6 +145,7 @@ describe('teste la gestion des titulaires', () => {
     ['COMINCO France S.A.', ['SA COMINCO']],
     ['COMINCO France S.A.', ['SA COMINCO']],
     ['CIE MINIERE DE ST VINCENT', ['Compagnie MINIERE DE ST VINCENT']],
+    ['Cie MINIERE DE ST VINCENT', ['Compagnie MINIERE DE ST VINCENT']],
     ['BRGM + Vieille Montagne', ['BRGM', 'Vieille montagne']],
     ['BRGM et Vieille Montagne', ['BRGM', 'Vieille montagne']],
     [
@@ -156,6 +157,29 @@ describe('teste la gestion des titulaires', () => {
       ['Aluminium Pechiney', 'Union des Bauxites'],
     ],
     ['SA Union Minière France', ['SA Union Minière France']],
+    ['Méridionnale', ['Méridionale']],
+    ['Charbonnage de France', ['Charbonnages de France']],
+    ['BRGGM', ['BRGM']],
+    ['COGEMA-HEXAMINES', ['COGEMA', 'HEXAMINES']],
+    ["Centre d'etude set de recherches", ["Centre d'etudes et de recherches"]],
+    [
+      'COMPAGNIE GENERALE DESASPHALTES DE FRANCE',
+      ['COMPAGNIE GENERALE DES ASPHALTES DE FRANCE'],
+    ],
+    [
+      'Propriétaires: M. Etienne et M. Liberier et Melle Liberier',
+      ['M. Etienne', 'M. Liberier', 'Melle Liberier'],
+    ],
+    ['SARL Burguière-Verdeille', ['SARL Burguière-Verdeille']],
+    [
+      'Société Générale des Recherches et Exploitations Minières',
+      ["SOGEREM (Société Générale de Recherches et d'Exploitation Minière)"],
+    ],
+    [
+      "Société Générale de Recherches et d'Exploitations Minières",
+      ["SOGEREM (Société Générale de Recherches et d'Exploitation Minière)"],
+    ],
+    ['ALUMINIUM PECHINEY', ['Aluminium Pechiney']],
   ]).test('récupère correctement les titulaires de %s', (input, output) =>
     expect(titulairesGet(input)).toEqual(output)
   )

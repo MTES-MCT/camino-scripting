@@ -3,6 +3,11 @@ const titulairesGet = (titulaires, reportRow) => {
 
   if (!titulaires) return []
 
+  // // tests au début
+  // if (titulaires.match(/^electricite/i))
+  //   console.log('titulaires :>> ', titulaires)
+  //
+
   //   Toutes les exceptions gérées à la main
   if (titulaires === '11/08/1906') return []
   if (titulaires === 'Sieurs Castillon de St Victor et Thomas')
@@ -22,10 +27,12 @@ const titulairesGet = (titulaires, reportRow) => {
     return ['Sté des mines du Bourneix']
   if (titulaires === 'Aluminium Pechiney et Union des Bauxites')
     return ['Aluminium Pechiney', 'Union des Bauxites']
+  if (titulaires === 'ALUMINIUM PECHINEY') return ['Aluminium Pechiney']
   if (titulaires === 'BRGM et Vieille Montagne')
     return ['BRGM', 'Vieille montagne']
   if (titulaires === 'BRGM + Vieille Montagne')
     return ['BRGM', 'Vieille montagne']
+  if (titulaires === 'BRGGM') return ['BRGM']
   if (titulaires === 'SA Union Minière France')
     return ['SA Union Minière France']
   if (titulaires === 'S.A. St-Gobain - Chauny - Cirey')
@@ -34,6 +41,10 @@ const titulairesGet = (titulaires, reportRow) => {
     return ['ELECTRICITE DE FRANCE (EDF)']
   if (titulaires === 'M. GUYON,Maître de forge à Foucherans .')
     return ['M. GUYON, Maître de forge à Foucherans']
+  if (
+    titulaires === 'Propriétaires: M. Etienne et M. Liberier et Melle Liberier'
+  )
+    return ['M. Etienne', 'M. Liberier', 'Melle Liberier']
 
   if (
     titulaires ===
@@ -105,6 +116,9 @@ const titulairesGet = (titulaires, reportRow) => {
 
   // remplace 'SA HÉRITIERS' par 'HÉRITIERS'
   titulaires = titulaires.replace(/sa\s(h[eé]riti[eé]rs?)/i, '$1')
+
+  // remplace 'SA RL ' et 'SA R.L. ' par 'SARL '
+  titulaires = titulaires.replace(/s\.?\s?a\.?\s?r\.?\s?l\.?\s/i, 'SARL ')
 
   // retire les ')' orphelines
   if (titulaires.match(/\)/) && !titulaires.match(/\(.*\)/)) {
@@ -179,6 +193,31 @@ const titulairesGet = (titulaires, reportRow) => {
 
   // ajoute un espace derrière 'MM.' s'il est manquant
   titulaires = titulaires.replace(/(mm\.)(\S)/i, '$1 $2')
+
+  // ajoute un espace entre 'DES' et 'ALPHATES' dans 'DESALPHATES'
+  titulaires = titulaires.replace(/(des)(asphaltes)/i, '$1 $2')
+
+  if (
+    titulaires === 'SA des Mines des Bormettes, Marseille' ||
+    titulaires === 'Société des mines des Bormettes (SMB)'
+  )
+    return ['SA des mines des Bormettes']
+  if (
+    titulaires === "Société Générale de Recherches et d'Exploitations Minières"
+  )
+    return [
+      "SOGEREM (Société Générale de Recherches et d'Exploitation Minière)",
+    ]
+  if (
+    titulaires === 'Société Générale des Recherches et Exploitations Minières'
+  )
+    return [
+      "SOGEREM (Société Générale de Recherches et d'Exploitation Minière)",
+    ]
+  if (titulaires === "COMPAGNIE GENERALE DES MINES D'ASPHALTES")
+    return ["COMPAGNIE GENERALE DES MINES D'ASPHALTE"]
+  if (titulaires === 'COMPAGNIE GENERALE DES ASPHALTES')
+    return ['COMPAGNIE GENERALE DES ASPHALTES DE FRANCE']
 
   let result
 
@@ -261,10 +300,28 @@ const titulairesGet = (titulaires, reportRow) => {
       'Bureau de Recherches Géologiques et Minières',
       "Compagnie des Forges d'Audincourt",
       'SA des mines de Faymoreau',
+      'Société des mines du Bourneix',
+      'Société la Petite Faye',
+      'Société des recherches minières de la Tabarière',
+      'SA des Mines de Faymoreau',
+      "Societe des Mines de l'Esterel",
+      'Urbain Voisin',
+      'Société Minière de Trébas',
+      "Société Générale de Recherches et d'Exploitations Minières",
+      'Houillères de Bassin du Centre et du Midi',
+      'Société Minière de Trébas',
+      "COMPAGNIE GENERALE DES MINES D'ASPHALTE",
+      "SA DES MINES D'ENTREVERNES",
+      "COMPAGNIE GENERALE DES MINES D'ASPHALTE",
+      'COMPAGNIE GENERALE DES ASPHALTES DE FRANCE',
+      'SA de la Rochetréjoux',
+      'SA BAP',
+      'SA des Bauxites et Alumines de Provence (SABAP)',
+      'M. ANTOINE CHARPIN',
     ]
 
-    if (titulaires.match(/\s/) && !titulaires_OK.includes(titulaires)) {
-      console.log('titulaires :>> ', titulaires)
+    if (!titulaires_OK.includes(titulaires)) {
+      // if (titulaires.match(/\s/)) console.log('titulaires :>> ', titulaires)
     }
   }
   /////////////

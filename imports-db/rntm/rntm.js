@@ -13,6 +13,8 @@ const {substancesPrincipalesGet} = require("./substances");
 const json2csv = require('json2csv').parse
 const turf = require("turf")
 const circle = require("turf-circle")
+const {logResult} = require("./titulaires-camino");
+const {titulairesCaminoGet} = require("./titulaires-camino");
 const {titulairesGet} = require("./titulaires");
 
 let nbErrors = 0
@@ -157,6 +159,9 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
     points = pointsCreate(titreEtapeId, coordinates, 0, 0);
   }
 
+  const titulairesRntm = titulairesGet(props.Dernier_titulaire, reportRow)
+  const titulaires = titulairesCaminoGet(titulairesRntm, reportRow)
+
   return {
       id: titreId,
       nom: titreNom,
@@ -186,7 +191,7 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
               id: s.id
             })),
             points,
-            titulaires: titulairesGet(props.Dernier_titulaire)
+            titulaires
           }
         ]
       }]
@@ -229,6 +234,8 @@ const main = () => {
 
     return titres
   }, [])
+
+  logResult()
 
   const titresIds = titres.map(t => t.id)
   const duplicateIds = [...new Set(titresIds.filter((item, index) => titresIds.indexOf(item) !== index))]
