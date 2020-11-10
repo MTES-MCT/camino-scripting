@@ -78,6 +78,11 @@ const titulairesGet = (titulaires, reportRow) => {
     titulaires = titulaires.replace('-', ' - ')
   }
 
+  //si on a autant de points que de lettres, alors on enlève les points ex: B.R.G.M. => BRGM
+  if ((titulaires.match(/\./g) || []).length >= (titulaires.length - 1)/2){
+    titulaires = titulaires.replace(/\./g, "")
+  }
+
   // ajoute un espace derrière la virgule s'il est manquant
   titulaires = titulaires.replace(/(,)(\S)/, '$1 $2')
 
