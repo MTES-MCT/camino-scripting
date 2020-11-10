@@ -4,7 +4,7 @@ const titulairesGet = (titulaires, reportRow) => {
   if (!titulaires) return []
 
   // // tests au début
-  // if (titulaires.match(/^electricite/i))
+  // if (titulaires.match(/Méridionnale/i))
   //   console.log('titulaires :>> ', titulaires)
   //
 
@@ -27,7 +27,6 @@ const titulairesGet = (titulaires, reportRow) => {
     return ['Sté des mines du Bourneix']
   if (titulaires === 'Aluminium Pechiney et Union des Bauxites')
     return ['Aluminium Pechiney', 'Union des Bauxites']
-  if (titulaires === 'ALUMINIUM PECHINEY') return ['Aluminium Pechiney']
   if (titulaires === 'BRGM et Vieille Montagne')
     return ['BRGM', 'Vieille montagne']
   if (titulaires === 'BRGM + Vieille Montagne')
@@ -70,8 +69,18 @@ const titulairesGet = (titulaires, reportRow) => {
   }
   titulaires = titulaires.replace(/\S(-\s)/, ' $1')
 
+  // remplace 'Méridionnale' par 'Méridionale'
+  titulaires = titulaires.replace('Méridionnale', 'Méridionale')
+
+  // remplace "Centre d'etude set de recherches" par "Centre d'etudes et de recherches"
+  titulaires = titulaires.replace(
+    "Centre d'etude set de recherches",
+    "Centre d'etudes et de recherches"
+  )
+
   const titulaire_tiret_separation = [
     'HÉRITIERS VEYRAT-CONCESSION "ORPHELINE" SANS',
+    'COGEMA-HEXAMINES',
   ]
 
   if (titulaire_tiret_separation.includes(titulaires)) {
