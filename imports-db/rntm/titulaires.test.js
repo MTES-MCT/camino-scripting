@@ -145,6 +145,7 @@ describe('teste la gestion des titulaires', () => {
     ['COMINCO France S.A.', ['SA COMINCO']],
     ['COMINCO France S.A.', ['SA COMINCO']],
     ['CIE MINIERE DE ST VINCENT', ['Compagnie MINIERE DE ST VINCENT']],
+    ['Cie MINIERE DE ST VINCENT', ['Compagnie MINIERE DE ST VINCENT']],
     ['BRGM + Vieille Montagne', ['BRGM', 'Vieille montagne']],
     ['BRGM et Vieille Montagne', ['BRGM', 'Vieille montagne']],
     [
@@ -156,6 +157,58 @@ describe('teste la gestion des titulaires', () => {
       ['Aluminium Pechiney', 'Union des Bauxites'],
     ],
     ['SA Union Minière France', ['SA Union Minière France']],
+    ['Méridionnale', ['Méridionale']],
+    ['Charbonnage de France', ['Charbonnages de France']],
+    ['BRGGM', ['BRGM']],
+    ['COGEMA-HEXAMINES', ['COGEMA', 'HEXAMINES']],
+    ["Centre d'etude set de recherches", ["Centre d'etudes et de recherches"]],
+    [
+      'COMPAGNIE GENERALE DESASPHALTES DE FRANCE',
+      ['COMPAGNIE GENERALE DES ASPHALTES DE FRANCE'],
+    ],
+    [
+      'Propriétaires: M. Etienne et M. Liberier et Melle Liberier',
+      ['M. Etienne', 'M. Liberier', 'Melle Liberier'],
+    ],
+    ['SARL Burguière-Verdeille', ['SARL Burguière-Verdeille']],
+    [
+      'Société Générale des Recherches et Exploitations Minières',
+      ["SOGEREM (Société Générale de Recherches et d'Exploitation Minière)"],
+    ],
+    [
+      "Société Générale de Recherches et d'Exploitations Minières",
+      ["SOGEREM (Société Générale de Recherches et d'Exploitation Minière)"],
+    ],
+    ['ALUMINIUM PECHINEY', ['Aluminium Pechiney']],
+    ['Société nouvelles', ['Société nouvelle']],
+    ['Sté La Petite Faye', ['Société La Petite Faye']],
+    ['Société des Mines de fonderie de Zn', ['Société des Mines de fonderie de Zinc']],
+    ['Société des Mines de fonderie de Zn', ['Société des Mines de fonderie de Zinc']],
+    ['La vieille montagne', ['vieille montagne']],
+    ['vieille-montagne', ['vieille montagne']],
+    ['de l\'ariège', ['d\'ariège']],
+
+    ['Société Commentry-Fourchambault-Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['SA de Commentry, Fourchambault et Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['SA de Commentry-Fourcambault-Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['SA de Commentry-Fourchambault-Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['Société de Commentry-Fourcambault et Decazeville en 1931', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['Société de Commentry-Fourchambault et Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['Commentry-Fourchambeault-Decazeville', ['SA de Commentry-Fourchambault-Decazeville']],
+    ['COMMENTRY-FOURCHAMBAULT-DECAZEVILLE', ['SA de Commentry-Fourchambault-Decazeville']],
+
+    ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS, ETABLISSEMENT PRENAT', ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS']],
+    ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS, ETABLISSEMENTS PRENA', ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS']],
+    ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DES GIVORS, ETABLISSEMENT PRENAT', ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS']],
+    ['Compagnie HAUTS FOURNEAUX ET FONDERIE DE GIVORS', ['COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS']],
+
+    ['Compagnie des Produits Chimiques et Electro-metallurgique Alais-Froges et Camargue',['Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue']],
+    ['Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargues',['Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue']],
+
+    ['ventes',['vente']],
+    ['PENARROYA-BRGM',['PENARROYA', 'BRGM']],
+    ['Pennaroya',['PENARROYA']],
+
   ]).test('récupère correctement les titulaires de %s', (input, output) =>
     expect(titulairesGet(input)).toEqual(output)
   )
