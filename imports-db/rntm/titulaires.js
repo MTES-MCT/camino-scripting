@@ -39,6 +39,10 @@ const titulairesGet = (titulaires, reportRow) => {
     titulaires === 'Propriétaires: M. Etienne et M. Liberier et Melle Liberier'
   )
     return ['M. Etienne', 'M. Liberier', 'Melle Liberier']
+  if (titulaires === 'BRGM associé à la CRAM et à Vieille Montagne')
+    return ['BRGM', 'CRAM', 'Vieille Montagne']
+  if (titulaires === 'HEXAMINES GUILLIAMS') return ['HEXAMINES', 'GUILLIAMS']
+  if (titulaires === 'MDPA-SA') return ['MDPA']
 
   if (
     titulaires ===
@@ -62,6 +66,15 @@ const titulairesGet = (titulaires, reportRow) => {
   if (titulaires === '- REPLOR + SPI (op)') {
     titulaires = 'REPLOR + SPI (op)'
   }
+
+  // remplace 'Charbonnage de France' par 'Charbonnages de France'
+  titulaires = titulaires.replace(/(charbonnage)(\sde\sfrance)/i, '$1s$2')
+
+  // remplace 'Gewerkschaf' par 'Gewerkschaft'
+  titulaires = titulaires.replace(/(gewerkschaf)/i, '$1t')
+
+  // remplace 'dePuy' par 'de Puy'
+  titulaires = titulaires.replace(/(de)(puy)/i, '$1 $2')
 
   // remplace 'zn' par 'zinc'
   titulaires = titulaires.replace(/(z)(n)/i, '$1i$2c')
