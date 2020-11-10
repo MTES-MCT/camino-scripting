@@ -3,11 +3,6 @@ const titulairesGet = (titulaires, reportRow) => {
 
   if (!titulaires) return []
 
-  // // tests au début
-  // if (titulaires.match(/Méridionnale/i))
-  //   console.log('titulaires :>> ', titulaires)
-  //
-
   //   Toutes les exceptions gérées à la main
   if (titulaires === '11/08/1906') return []
   if (titulaires === 'Sieurs Castillon de St Victor et Thomas')
@@ -67,10 +62,46 @@ const titulairesGet = (titulaires, reportRow) => {
   if (titulaires === '- REPLOR + SPI (op)') {
     titulaires = 'REPLOR + SPI (op)'
   }
+
+  // remplace 'zn' par 'zinc'
+  titulaires = titulaires.replace(/(z)(n)/i, '$1i$2c')
+
+  // remplace 'Société nouvelles' par 'Société nouvelle'
+  titulaires = titulaires.replace(/(Société nouvelle)s/i, '$1')
+
+  // remplace 'ventes' par 'vente'
+  titulaires = titulaires.replace(/(vente)s/i, '$1')
+
+  // remplace 'de l'ariège' par 'd'ariège'
+  titulaires = titulaires.replace(/(d)e l('ariège)/i, '$1$2')
+
+  // remplace 'vieille-montagne' et 'La vieille montagne' par 'vieille montagne'
+  titulaires = titulaires.replace(/(la\s)?(vieille)\-?\s?(montagne)/i, '$2 $3')
+
+  // remplace tout ce qui contient 'commentry' ET 'decazeville' par 'SA de Commentry-Fourchambault-Decazeville'
+  if (titulaires.match(/commentry/i) && titulaires.match(/decazeville/i)) {
+    titulaires = 'SA de Commentry-Fourchambault-Decazeville'
+  }
+
+  // remplace tout ce qui contient 'givors' par 'COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS'
+  if (titulaires.match(/givors/i)) {
+    titulaires = 'COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS'
+  }
+
+  // remplace tout ce qui contient 'frogus' par 'Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue'
+  if (titulaires.match(/froges/i)) {
+    titulaires =
+      'Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue'
+  }
+
+  // remplace 'xxx- yyy' par 'xxx - yyy-
   titulaires = titulaires.replace(/\S(-\s)/, ' $1')
 
   // remplace 'Méridionnale' par 'Méridionale'
   titulaires = titulaires.replace('Méridionnale', 'Méridionale')
+
+  // remplace 'Pennaroya' par 'PENARROYA'
+  titulaires = titulaires.replace('Pennaroya', 'PENARROYA')
 
   // remplace "Centre d'etude set de recherches" par "Centre d'etudes et de recherches"
   titulaires = titulaires.replace(
@@ -81,6 +112,7 @@ const titulairesGet = (titulaires, reportRow) => {
   const titulaire_tiret_separation = [
     'HÉRITIERS VEYRAT-CONCESSION "ORPHELINE" SANS',
     'COGEMA-HEXAMINES',
+    'PENARROYA-BRGM',
   ]
 
   if (titulaire_tiret_separation.includes(titulaires)) {
@@ -88,8 +120,8 @@ const titulairesGet = (titulaires, reportRow) => {
   }
 
   //si on a autant de points que de lettres, alors on enlève les points ex: B.R.G.M. => BRGM
-  if ((titulaires.match(/\./g) || []).length >= (titulaires.length - 1)/2){
-    titulaires = titulaires.replace(/\./g, "")
+  if ((titulaires.match(/\./g) || []).length >= (titulaires.length - 1) / 2) {
+    titulaires = titulaires.replace(/\./g, '')
   }
 
   // ajoute un espace derrière la virgule s'il est manquant
@@ -166,18 +198,6 @@ const titulairesGet = (titulaires, reportRow) => {
 
   // remplace 'Etat français' par 'Etat'
   titulaires = titulaires.replace(/[eé]tat\sfran[çc]ais/i, 'Etat')
-
-  // gère où il y a 'EDF'
-  titulaires = titulaires.replace(
-    /^E\.?D\.?F\.?$/,
-    'ELECTRICITE DE FRANCE (EDF)'
-  )
-
-  // gère où il y a 'BRGM'
-  titulaires = titulaires.replace(
-    /^B\.?R\.?G\.?M\.?$/,
-    'Bureau de Recherches Géologiques et Minières'
-  )
 
   // remplace les 'CIE' par 'Compagnie'
   titulaires = titulaires.replace(/^CIE/, 'Compagnie')
@@ -279,6 +299,14 @@ const titulairesGet = (titulaires, reportRow) => {
 
   // ajoute un espace derrière 'M.' s'il est manquant
   result = result.map((r) => r.replace(/^(M\.)(\S)/, '$1 $2'))
+
+  //si on a autant de points que de lettres, alors on enlève les points ex: B.R.G.M. => BRGM
+  result = result.map((r) => {
+    if ((r.match(/\./g) || []).length >= (r.length - 1) / 2) {
+      return r.replace(/\./g, '')
+    }
+    return r
+  })
 
   //   result.filter((r) => r.match(/,/)).forEach((r) => console.log(r))
   //   result.filter((r) => r.match(/-/)).forEach((r) => console.log(r))
