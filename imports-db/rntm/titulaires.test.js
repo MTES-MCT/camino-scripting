@@ -43,7 +43,7 @@ describe('teste la gestion des titulaires', () => {
     ['MM. Abelanet, Barthès et Mas', ['M. Abelanet', 'M. Barthès', 'M. Mas']],
     [
       "Cie des Salins du Midi et des Salines de l'Est",
-      ["Cie des Salins du Midi et des Salines de l'Est"],
+      ["Compagnie des Salins du Midi et des Salines de l'Est"],
     ],
     [
       'Mrs Pradal, Granier, Villebrun et Peyras',
@@ -181,7 +181,6 @@ describe('teste la gestion des titulaires', () => {
       "Société Générale de Recherches et d'Exploitations Minières",
       ["SOGEREM (Société Générale de Recherches et d'Exploitation Minière)"],
     ],
-    ['ALUMINIUM PECHINEY', ['Aluminium Pechiney']],
     ['Société nouvelles', ['Société nouvelle']],
     ['Sté La Petite Faye', ['Société La Petite Faye']],
     [
@@ -266,40 +265,8 @@ describe('teste la gestion des titulaires', () => {
     ['HEXAMINES GUILLIAMS', ['HEXAMINES', 'GUILLIAMS']],
     ['Commune dePuy-Saint-André', ['Commune de Puy-Saint-André']],
 
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALAIS"],
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALAIS"],
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALÈS"],
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALAIS"],
-    ['COMPAGNIE DES MINES, FONDERIES ET FORGES DALAIS'],
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALAIS"],
-    ["COMPAGNIE DES MINES ET FONDERIES ET FORGES D'ALES"],
-    ["COMPAGNIE DES MINES, FONDERIES ET FORGES D'ALAIS"],
 
-    ['COMPAGNIE DES MINES ET USINE DE SAINT MICHEL ET SORDIERE'],
-    ['COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERE'],
-    ['COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERE'],
-    ['COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERE'],
-    [
-      'COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERES (LIQUIDATEUR FINAL : M. MAGNIN)',
-    ],
-    ['COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERE'],
-    [
-      'COMPAGNIE DES MINES ET USINES DE ST MICHEL ET SORDIERES (LIQUIDATEUR FINAL : M. MAGNINI)',
-    ],
-    ['COMPAGNIE DES MINES ET USINES DE SAINT MICHEL ET SORDIERE'],
-
-    [
-      "COMPAGNIE DES MINES D'ANTHRACITE ET DE TALC DU DAUPHINE (LIQUIDATEUR : M. PIERRE CRENN)",
-    ],
-    ["COMPAGNIE DES MINES D'ANTHRACITE ET DE TALC DU DAUPHINE"],
-    [
-      "COMPAGNIE DES MINES D'ANTHRACITE ET DE TALC DU DAUPHINE POUR LES 2 TIERS",
-    ],
-    ["COMPAGNIE DES MINES D'ANTHRACITE ET DE TALC DU DAUPHINE"],
-
-    ['BRGM associé à la CRAM et à Vieille Montagne'],
-    ['BRGM', 'CRAM', 'Vieille Montagne'],
-
+    ['BRGM associé à la CRAM et à Vieille Montagne', ['BRGM', 'CRAM', 'Vieille Montagne']],
     ['ventes', ['vente']],
     ['PENARROYA-BRGM', ['PENARROYA', 'BRGM']],
     ['Pennaroya', ['PENARROYA']],

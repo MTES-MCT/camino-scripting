@@ -200,7 +200,7 @@ const titulairesGet = (titulaires, reportRow) => {
   titulaires = titulaires.replace(/[eé]tat\sfran[çc]ais/i, 'Etat')
 
   // remplace les 'CIE' par 'Compagnie'
-  titulaires = titulaires.replace(/^CIE/, 'Compagnie')
+  titulaires = titulaires.replace(/^CIE/i, 'Compagnie')
 
   // retire 'france' si ce n'est pas 'de france'
   if (titulaires.match(/\s?france\s?/i) && !titulaires.match(/de\sfrance/i)) {
