@@ -160,6 +160,8 @@ describe('teste la gestion des titulaires', () => {
     ['Méridionnale', ['Méridionale']],
     ['Charbonnage de France', ['Charbonnages de France']],
     ['BRGGM', ['BRGM']],
+    ['B.R.G.M.', ['BRGM']],
+    ['B.R.G.M', ['BRGM']],
     ['COGEMA-HEXAMINES', ['COGEMA', 'HEXAMINES']],
     ["Centre d'etude set de recherches", ["Centre d'etudes et de recherches"]],
     [
