@@ -1,5 +1,5 @@
 const titulairesGet = (titulaires, reportRow) => {
-  if (titulaires === '') return ['']
+  if (titulaires === '') return []
 
   if (!titulaires) return []
 
@@ -20,9 +20,38 @@ const titulairesGet = (titulaires, reportRow) => {
   if (titulaires === 'Sté  de La Petite Faye') return ['Sté La Petite Faye']
   if (titulaires === 'Sté des Mines du Bourneix')
     return ['Sté des mines du Bourneix']
+  if (titulaires === 'Aluminium Pechiney et Union des Bauxites')
+    return ['Aluminium Pechiney', 'Union des Bauxites']
+  if (titulaires === 'BRGM et Vieille Montagne')
+    return ['BRGM', 'Vieille montagne']
+  if (titulaires === 'BRGM + Vieille Montagne')
+    return ['BRGM', 'Vieille montagne']
+  if (titulaires === 'SA Union Minière France')
+    return ['SA Union Minière France']
+  if (titulaires === 'S.A. St-Gobain - Chauny - Cirey')
+    return ['SA St-Gobain, Chauny et Cirey']
+  if (titulaires === 'ELECTRICITE DE FRANCE')
+    return ['ELECTRICITE DE FRANCE (EDF)']
+  if (titulaires === 'M. GUYON,Maître de forge à Foucherans .')
+    return ['M. GUYON, Maître de forge à Foucherans']
 
-  // adapte le - séparateur
+  if (
+    titulaires ===
+    'MM.Xavier et  Charles Lamotte\n' +
+      'Louis, Pierre et Robert Gorand,\n' +
+      'A. Devaux, M. le CdT Le Bicqué,\n' +
+      'Mme Fo'
+  )
+    return [
+      'MM. Xavier et  harles Lamotte',
+      'MM. Louis, Pierre et Robert Gorand',
+      'M. A. Devaux',
+      'M. le CdT Le Bicqué',
+      'Mme Fo',
+    ]
+
   if (titulaires === 'Commerner Bergwerk- und Hütten Aktien Verein') {
+    // adapte le - séparateur
     titulaires = 'Commerner Bergwerk - Hütten Aktien Verein'
   }
   if (titulaires === '- REPLOR + SPI (op)') {
@@ -47,8 +76,35 @@ const titulairesGet = (titulaires, reportRow) => {
   // retire les ';' à la fin
   titulaires = titulaires.replace(/;$/, '')
 
-  // remplace 'S. A.' par 'S.A.'
-  titulaires = titulaires.replace('S. A.', 'S.A.')
+  // remplace 'eploitation' par 'exploitation '
+  titulaires = titulaires.replace(/(e)(ploitation)/i, '$1x$2')
+
+  // remplace 'soc. ' et 'soc ' par 'société '
+  titulaires = titulaires.replace(/soc\.?\s/i, 'Société ')
+
+  // remplace 'socité ' par 'société '
+  titulaires = titulaires.replace(/(soci)(té)/i, '$1é$2')
+
+  // remplace 'sté ' par 'société '
+  titulaires = titulaires.replace(/st[eé]\.?\s/i, 'Société ')
+
+  // remplace 'S. A.', 'S.A.', 'S.A', et 'S A' par 'SA'
+  titulaires = titulaires.replace(/S\.?\s?A\.?/, 'SA')
+
+  // remplace 'SA anonyme' par 'SA'
+  titulaires = titulaires.replace(/sa\sanonym[eé]/i, 'SA')
+
+  // remplace 'société anonyme' par 'SA'
+  titulaires = titulaires.replace(/soci[eé]t[eé]\sanonym[eé]/i, 'SA')
+
+  // place 'SA' au début quand on trouve 'SA' ou 'S.A.' à la fin
+  titulaires = titulaires.replace(/(.+)(\sS\.?A\.?)$/, 'SA $1')
+
+  // met un espace s'il est manquant derrière 'S.A.' placé au début
+  titulaires = titulaires.replace(/(^S\.?A\.?)(\w)/, 'SA $2')
+
+  // remplace 'SA HÉRITIERS' par 'HÉRITIERS'
+  titulaires = titulaires.replace(/sa\s(h[eé]riti[eé]rs?)/i, '$1')
 
   // retire les ')' orphelines
   if (titulaires.match(/\)/) && !titulaires.match(/\(.*\)/)) {
@@ -74,18 +130,63 @@ const titulairesGet = (titulaires, reportRow) => {
     .replace(/\s[eé]tat\s/i, ' Etat ')
     .replace("Propriété de l'Etat", 'Etat')
 
-    .replace(/^l'[ée]tat$/i, 'Etat')
+    .replace(/^l'?[ée]tat$/i, 'Etat')
 
   if (titulaires.match(/\s[eé]tat$/i) || titulaires.match(/^[eé]tat$/i)) {
     titulaires = titulaires.slice(0, -4) + 'Etat'
   }
 
+  // remplace 'Etat français' par 'Etat'
+  titulaires = titulaires.replace(/[eé]tat\sfran[çc]ais/i, 'Etat')
+
+  // gère où il y a 'EDF'
+  titulaires = titulaires.replace(
+    /^E\.?D\.?F\.?$/,
+    'ELECTRICITE DE FRANCE (EDF)'
+  )
+
+  // gère où il y a 'BRGM'
+  titulaires = titulaires.replace(
+    /^B\.?R\.?G\.?M\.?$/,
+    'Bureau de Recherches Géologiques et Minières'
+  )
+
+  // remplace les 'CIE' par 'Compagnie'
+  titulaires = titulaires.replace(/^CIE/, 'Compagnie')
+
+  // retire 'france' si ce n'est pas 'de france'
+  if (titulaires.match(/\s?france\s?/i) && !titulaires.match(/de\sfrance/i)) {
+    titulaires = titulaires.replace(/\s?france\s?/i, '')
+  }
+
+  // remplace 'E.D.F' et 'E.D.F. par 'EDF'
+  titulaires = titulaires.replace(/E\.D\.F\.?/, 'EDF')
+
+  // remplace 'MONSIEUR' par 'M.'
+  titulaires = titulaires.replace(/monsieur/i, 'M.')
+
+  // ajoute un 's' derrirère 'mr' s'il y a des 'et'
+  titulaires = titulaires.replace(/^(mr)(\s.+et.+)/i, '$1s$2')
+
+  // remplace 'MR' par 'M.'
+  titulaires = titulaires.replace(/^mr[^s]\.?/i, 'M.')
+
+  // remplace 'MADAME' par 'Mme'
+  titulaires = titulaires.replace(/madame/i, 'Mme')
+
+  // remplace 'MONSIEUR ET MADAME' par 'M. ET Mme'
+  titulaires = titulaires.replace(/monsieur\set\smadame/i, 'M. ET Mme')
+
+  // ajoute un espace derrière 'MM.' s'il est manquant
+  titulaires = titulaires.replace(/(mm\.)(\S)/i, '$1 $2')
+
   let result
 
   if (
-    titulaires.match(/^MM\.\s/i) ||
-    titulaires.match(/^Sieurs?\s/i) ||
-    titulaires.match(/^Mrs?\s/i)
+    (titulaires.match(/^MM?\.?\s/i) ||
+      titulaires.match(/^Sieurs?\s/i) ||
+      titulaires.match(/^Mrs?\s/i)) &&
+    !titulaires.match(/m\.\set\smme/i)
   ) {
     result = [
       ...titulaires
@@ -111,6 +212,7 @@ const titulairesGet = (titulaires, reportRow) => {
       .split(/\//)
       .flatMap((t) => t.split(/\s-\s/))
       .flatMap((t) => t.split(/\sund\s/))
+      .flatMap((t) => t.split(/\s\+\s/))
       .map((t) => t.trim())
   }
 
@@ -156,14 +258,15 @@ const titulairesGet = (titulaires, reportRow) => {
       'COMPAGNIE DES MINES DE MAURIENNE (LIQUIDATEUR : M. L.A. BOEHLER)',
       'SOCIÉTÉ DES MINES DE LA MAURIENNE',
       'Charbonnages de France',
+      'Bureau de Recherches Géologiques et Minières',
+      "Compagnie des Forges d'Audincourt",
+      'SA des mines de Faymoreau',
     ]
 
-    if (!titulaires.match(/\s/) && !titulaires_OK.includes(titulaires)) {
+    if (titulaires.match(/\s/) && !titulaires_OK.includes(titulaires)) {
       console.log('titulaires :>> ', titulaires)
     }
   }
-
-  return result
   /////////////
 
   return result

@@ -71,7 +71,7 @@ describe('teste la gestion des titulaires', () => {
     ['M. Stehelin,', ['M. Stehelin']],
     ['Mr Blanc ?,', ['M. Blanc']],
     ['Exalor Inc;', ['Exalor Inc']],
-    ['Sté Pénaroya)', ['Sté Pénaroya']],
+    ['Sté Pénaroya)', ['Société Pénaroya']],
     ['MM. ROHMER ET MICOLON ??', ['M. ROHMER', 'M. MICOLON']],
     ['M. ANTOINE CHARPIN.', ['M. ANTOINE CHARPIN']],
     [
@@ -91,7 +91,7 @@ describe('teste la gestion des titulaires', () => {
       'Société Minière des Schistes Bitumineux dAutun',
       ["Société Minière des Schistes Bitumineux d'Autun"],
     ], //Exeption
-    ['S.A. St-Gobain - Chauny - Cirey', ['S.A. St-Gobain', 'Chauny', 'Cirey']],
+    ['S.A. St-Gobain - Chauny - Cirey', ['SA St-Gobain, Chauny et Cirey']],
     [
       'Mmes Maffioly, Adamzyk, Cerri',
       ['Mme Maffioly', 'Mme Adamzyk', 'Mme Cerri'],
@@ -102,8 +102,6 @@ describe('teste la gestion des titulaires', () => {
     ], //Exeption
     ['Sté  de La Petite Faye', ['Sté La Petite Faye']], //Exeption
     ['Sté des Mines du Bourneix', ['Sté des mines du Bourneix']], //Exeption
-    /////////////////////////// gérer les +
-    ['- REPLOR + SPI (op)', ['REPLOR + SPI (op)']], //Exeption
     [
       'Socité des Charbonnages et Electricité du Sud-est',
       ['Société des Charbonnages et Electricité du Sud-est'],
@@ -119,8 +117,8 @@ describe('teste la gestion des titulaires', () => {
     ['Société Anonymé', ['SA']],
     ['Société Anonyme', ['SA']],
     ['S.A.', ['SA']],
-    ['S.A ', ['SA']],
-    ['S A ', ['SA']],
+    ['S.A', ['SA']],
+    ['S A', ['SA']],
     ['SOC toto', ['Société toto']],
     ['SOC. Anonyme toto', ['SA toto']],
     ['S.A.des Baux.', ['SA des Baux']],
@@ -157,6 +155,7 @@ describe('teste la gestion des titulaires', () => {
       'Aluminium Pechiney + Union des Bauxites',
       ['Aluminium Pechiney', 'Union des Bauxites'],
     ],
+    ['SA Union Minière France', ['SA Union Minière France']],
   ]).test('récupère correctement les titulaires de %s', (input, output) =>
     expect(titulairesGet(input)).toEqual(output)
   )
