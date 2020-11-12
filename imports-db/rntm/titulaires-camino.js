@@ -19,11 +19,15 @@ const entreprisesCaminoSlugFullIndex = entreprisesCamino
 }, {})
 
 const titulairesCaminoGet = (titulaires, reportRow) => {
-  return  titulaires.map(t => titulaireCaminoGet(t, reportRow))
+  const result = titulaires.map(t => titulaireCaminoGet(t))
+  if (reportRow) {
+    reportRow['Résultat Titulaires Camino'] = result.join(', ');
+  }
+  return  result
 }
 
 const entreprisesNew = []
-const titulaireCaminoGet = (titulaire, reportRow) => {
+const titulaireCaminoGet = (titulaire) => {
 
   let result = titulaire
   //tente de trouver le même slug
@@ -61,15 +65,15 @@ const titulaireCaminoGet = (titulaire, reportRow) => {
 
 const logResult = () => {
 
-  [...new Set(Object.values(entreprisesCaminoSlugIndex))]
-      .sort()
-      .forEach(e => {
-        if (entreprisesNew.includes(e)) {
-          console.log(e);
-        }else {
-          console.log("-", e)
-        }
-      })
+  // [...new Set(Object.values(entreprisesCaminoSlugIndex))]
+  //     .sort()
+  //     .forEach(e => {
+  //       if (entreprisesNew.includes(e)) {
+  //         console.log(e);
+  //       }else {
+  //         console.log("-", e)
+  //       }
+  //     })
   console.log("Nb entreprises crées:", entreprisesNew.length)
 }
 
