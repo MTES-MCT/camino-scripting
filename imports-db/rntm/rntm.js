@@ -194,7 +194,8 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
     points = pointsCreate(titreEtapeId, coordinates, 0, 0)
   }
 
-  const titulairesRntm = titulairesGet(props.Dernier_titulaire, reportRow)
+  const titulairesRntm = titulairesGet(props.Dernier_titulaire)
+  reportRow['Résultat titulaires normalisés'] = titulairesRntm.join(', ')
   const titulaires = titulairesCaminoGet(titulairesRntm, reportRow)
 
   return {

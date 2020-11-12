@@ -1,4 +1,4 @@
-const titulairesGet = (titulaires, reportRow) => {
+const titulairesGet = (titulaires) => {
   if (titulaires === '') return []
 
   if (!titulaires) return []
@@ -101,7 +101,7 @@ const titulairesGet = (titulaires, reportRow) => {
     titulaires = 'COMPAGNIE DES HAUTS FOURNEAUX ET FONDERIES DE GIVORS'
   }
 
-  // remplace tout ce qui contient 'frogus' par 'Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue'
+  // remplace tout ce qui contient 'froges' par 'Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue'
   if (titulaires.match(/froges/i)) {
     titulaires =
       'Compagnie des Produits Chimiques et Electrométallurgiques Alais, Froges et Camargue'
