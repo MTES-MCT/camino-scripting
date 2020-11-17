@@ -231,6 +231,15 @@ const featureFormat = (geojsonFeature, titreIds, reportRow) => {
             })),
             points,
             titulaires,
+            incertitudes: {
+              date: true,
+              dateDebut: true,
+              dateFin: true,
+              surface: true,
+              points: true,
+              substances: true,
+              titulaires: true
+            }
           },
         ],
       },
