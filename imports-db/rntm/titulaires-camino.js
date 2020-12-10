@@ -52,6 +52,8 @@ const titulaireCaminoGet = (titulaire) => {
     }
   }
 
+  //TODO faudrait rechercher aussi dans les établissements, mais après un test rapide ça sert à rien pour RNTM
+
   //rien trouver on retourne le titulaire rntm
   entreprisesCaminoSlugIndex[slugify(titulaire)] = result
   if (result.match(/\(*\)/)) {
