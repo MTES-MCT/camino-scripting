@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "@sindresorhus/slugify": "^0.6.0",
+    "@turf/circle": "^6.0.1",
     "@turf/turf": "^5.1.6",
     "crypto-random-string": "^3.2.0",
     "csvtojson": "^2.0.10",
@@ -24,9 +25,11 @@
     "xml-js": "^1.6.11",
     "xml-stream": "^0.4.5"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "jest": "^26.6.0"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --modulePathIgnorePatterns=aura"
   },
   "prettier": {
     "semi": false,

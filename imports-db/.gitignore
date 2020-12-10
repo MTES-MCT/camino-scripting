@@ -1,3 +1,6 @@
 node_modules
 sources/*
 exports/*
+package-lock.json
+**/results
+**/sources
