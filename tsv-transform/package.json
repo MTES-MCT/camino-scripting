@@ -7,7 +7,7 @@
     "csvtojson": "^2.0.8",
     "epsg-index": "^0.21.0",
     "gdal": "^0.9.8",
-    "parse-dms": "^0.0.3"
+    "parse-dms": "^0.0.5"
   },
   "devDependencies": {},
   "scripts": {
