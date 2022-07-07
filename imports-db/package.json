@@ -4,7 +4,7 @@
   "description": "Divers outils d'import de base",
   "main": "index.js",
   "dependencies": {
-    "@sindresorhus/slugify": "^0.6.0",
+    "@sindresorhus/slugify": "^0.11.0",
     "@turf/turf": "^5.1.6",
     "crypto-random-string": "^3.2.0",
     "csvtojson": "^2.0.10",
